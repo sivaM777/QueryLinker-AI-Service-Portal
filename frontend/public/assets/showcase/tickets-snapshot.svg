@@ -1,0 +1,95 @@
+<svg width="1600" height="1024" viewBox="0 0 1600 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1024" rx="36" fill="#F7FAFF"/>
+  <rect x="24" y="24" width="1552" height="976" rx="30" fill="#FFFFFF" stroke="#DCE8F8" stroke-width="2"/>
+
+  <rect x="48" y="48" width="1504" height="84" rx="28" fill="rgba(255,255,255,0.95)" stroke="#E5EEF9" stroke-width="2"/>
+  <image href="/assets/branding/querylinker-logo.png" x="78" y="60" width="72" height="60" preserveAspectRatio="xMidYMid meet"/>
+  <text x="172" y="96" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0F172A">Admin</text>
+  <text x="266" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Overview</text>
+  <text x="412" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Service Desk</text>
+  <text x="588" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Workspaces</text>
+  <text x="764" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Governance</text>
+  <text x="946" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Organization</text>
+  <text x="1130" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Resources</text>
+  <rect x="1258" y="64" width="242" height="50" rx="25" fill="#EEF4FF" stroke="#C7DBFF" stroke-width="2"/>
+  <text x="1298" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">DEMO</text>
+  <text x="1372" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Admin</text>
+
+  <rect x="70" y="176" width="1460" height="156" rx="28" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+  <rect x="96" y="204" width="338" height="54" rx="18" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+  <circle cx="124" cy="231" r="12" fill="#64748B" fill-opacity="0.18"/>
+  <text x="148" y="239" font-family="Arial, sans-serif" font-size="18" fill="#94A3B8">Search tickets, requesters, or tags...</text>
+  <rect x="454" y="204" width="170" height="54" rx="18" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+  <text x="486" y="239" font-family="Arial, sans-serif" font-size="18" fill="#0F172A">Views</text>
+  <rect x="642" y="204" width="174" height="54" rx="18" fill="#2563EB"/>
+  <text x="692" y="239" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Save View</text>
+  <rect x="836" y="204" width="176" height="54" rx="18" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2"/>
+  <text x="884" y="239" font-family="Arial, sans-serif" font-size="18" fill="#C0C6D0">Delete View</text>
+  <rect x="1032" y="204" width="150" height="54" rx="18" fill="#FFFFFF" stroke="#AEC8FF" stroke-width="2"/>
+  <text x="1074" y="239" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">Columns</text>
+  <rect x="1202" y="204" width="150" height="54" rx="18" fill="#FFFFFF" stroke="#AEC8FF" stroke-width="2"/>
+  <text x="1238" y="239" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">Add Filter</text>
+  <rect x="1372" y="204" width="132" height="54" rx="18" fill="#FFFFFF" stroke="#AEC8FF" stroke-width="2"/>
+  <text x="1408" y="239" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">Chart</text>
+
+  <rect x="96" y="276" width="170" height="40" rx="14" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+  <rect x="284" y="276" width="170" height="40" rx="14" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+  <rect x="472" y="276" width="170" height="40" rx="14" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+  <rect x="660" y="276" width="170" height="40" rx="14" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+  <text x="114" y="301" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">All Statuses</text>
+  <text x="302" y="301" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">All Types</text>
+  <text x="490" y="301" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Updated</text>
+  <text x="678" y="301" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Newest First</text>
+
+  <rect x="70" y="370" width="1460" height="586" rx="28" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+  <line x1="70" y1="454" x2="1530" y2="454" stroke="#E5EEF9" stroke-width="2"/>
+  <g font-family="Arial, sans-serif" fill="#0F172A">
+    <text x="102" y="420" font-size="18" font-weight="700">Number</text>
+    <text x="244" y="420" font-size="18" font-weight="700">Source</text>
+    <text x="368" y="420" font-size="18" font-weight="700">Type</text>
+    <text x="548" y="420" font-size="18" font-weight="700">Subject</text>
+    <text x="1038" y="420" font-size="18" font-weight="700">Requester</text>
+    <text x="1360" y="420" font-size="18" font-weight="700">Assigned Team</text>
+  </g>
+
+  <g stroke="#EEF3FA" stroke-width="2">
+    <line x1="70" y1="568" x2="1530" y2="568"/>
+    <line x1="70" y1="682" x2="1530" y2="682"/>
+    <line x1="70" y1="796" x2="1530" y2="796"/>
+    <line x1="70" y1="910" x2="1530" y2="910"/>
+  </g>
+
+  <g font-family="Arial, sans-serif" fill="#0F172A">
+    <text x="102" y="532" font-size="18" font-weight="700" fill="#2563EB">INC000000064</text>
+    <text x="252" y="532" font-size="16">GLPI</text>
+    <text x="368" y="532" font-size="16">INCIDENT</text>
+    <text x="548" y="532" font-size="18">My laptop screen is broken!</text>
+    <text x="1038" y="532" font-size="18">Admin User (admin@company.com)</text>
+    <text x="102" y="646" font-size="18" font-weight="700" fill="#2563EB">PRB000000070</text>
+    <text x="252" y="646" font-size="16">WEB</text>
+    <text x="368" y="646" font-size="16">PROBLEM</text>
+    <text x="548" y="646" font-size="18">Problem Investigation: My laptop screen is broken!</text>
+    <text x="1038" y="646" font-size="18">Admin User (admin@company.com)</text>
+    <text x="102" y="760" font-size="18" font-weight="700" fill="#2563EB">INC000000068</text>
+    <text x="252" y="760" font-size="16">WEB</text>
+    <text x="368" y="760" font-size="16">INCIDENT</text>
+    <text x="548" y="760" font-size="18">Suspicious sign-in alert</text>
+    <text x="1038" y="760" font-size="18">Employee User (employee@company.com)</text>
+    <text x="102" y="874" font-size="18" font-weight="700" fill="#2563EB">INC000000067</text>
+    <text x="252" y="874" font-size="16">EMAIL</text>
+    <text x="368" y="874" font-size="16">INCIDENT</text>
+    <text x="548" y="874" font-size="18">Outlook not receiving new email</text>
+    <text x="1038" y="874" font-size="18">Employee User (employee@company.com)</text>
+  </g>
+
+  <g>
+    <rect x="1358" y="496" width="132" height="46" rx="16" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+    <rect x="1358" y="610" width="132" height="46" rx="16" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+    <rect x="1358" y="724" width="132" height="46" rx="16" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+    <rect x="1358" y="838" width="132" height="46" rx="16" fill="#FFFFFF" stroke="#D6E2F3" stroke-width="2"/>
+    <text x="1388" y="526" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Unassigned</text>
+    <text x="1388" y="640" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Unassigned</text>
+    <text x="1388" y="754" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">L3 Expert Team</text>
+    <text x="1388" y="868" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">L1 Support</text>
+  </g>
+</svg>

@@ -1,0 +1,97 @@
+<svg width="1600" height="1024" viewBox="0 0 1600 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1024" rx="36" fill="#F6FAFF"/>
+  <rect x="24" y="24" width="1552" height="976" rx="30" fill="#FFFFFF" stroke="#DCE8F8" stroke-width="2"/>
+
+  <rect x="48" y="48" width="1504" height="84" rx="28" fill="rgba(255,255,255,0.95)" stroke="#E5EEF9" stroke-width="2"/>
+  <image href="/assets/branding/querylinker-logo.png" x="78" y="60" width="72" height="60" preserveAspectRatio="xMidYMid meet"/>
+  <text x="176" y="98" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#0F172A">Admin</text>
+  <rect x="264" y="66" width="160" height="48" rx="24" fill="#DBE8FF"/>
+  <text x="312" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">Overview</text>
+  <text x="451" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Service Desk</text>
+  <text x="628" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Workspaces</text>
+  <text x="804" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Governance</text>
+  <text x="984" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Organization</text>
+  <text x="1178" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Resources</text>
+  <rect x="1266" y="64" width="240" height="50" rx="25" fill="#EEF4FF" stroke="#C7DBFF" stroke-width="2"/>
+  <text x="1306" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">DEMO</text>
+  <text x="1380" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Admin</text>
+  <circle cx="1518" cy="88" r="20" fill="#F8FBFF" stroke="#E5EEF9" stroke-width="2"/>
+
+  <text x="72" y="198" font-family="Arial, sans-serif" font-size="44" font-weight="800" fill="#0F172A">Admin Console</text>
+  <text x="72" y="244" font-family="Arial, sans-serif" font-size="22" fill="#475569">System overview and operational metrics</text>
+
+  <g>
+    <rect x="72" y="292" width="344" height="162" rx="24" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+    <rect x="440" y="292" width="344" height="162" rx="24" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+    <rect x="808" y="292" width="344" height="162" rx="24" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+    <rect x="1176" y="292" width="344" height="162" rx="24" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+    <text x="104" y="346" font-family="Arial, sans-serif" font-size="18" fill="#64748B">Total Tickets</text>
+    <text x="104" y="410" font-family="Arial, sans-serif" font-size="64" font-weight="800" fill="#3B82F6">9</text>
+    <text x="104" y="438" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#10B981">↗ +12% from last week</text>
+    <text x="356" y="438" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">All time</text>
+
+    <text x="472" y="346" font-family="Arial, sans-serif" font-size="18" fill="#64748B">Open Tickets</text>
+    <text x="472" y="410" font-family="Arial, sans-serif" font-size="64" font-weight="800" fill="#EF4444">4</text>
+    <text x="472" y="438" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#EF4444">↘ -5% from yesterday</text>
+    <text x="724" y="438" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Need attention</text>
+
+    <text x="840" y="346" font-family="Arial, sans-serif" font-size="18" fill="#64748B">In Progress</text>
+    <text x="840" y="410" font-family="Arial, sans-serif" font-size="64" font-weight="800" fill="#F59E0B">3</text>
+    <text x="840" y="438" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#64748B">↗ 0% change</text>
+    <text x="1090" y="438" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Being worked on</text>
+
+    <text x="1208" y="346" font-family="Arial, sans-serif" font-size="18" fill="#64748B">Resolved</text>
+    <text x="1208" y="410" font-family="Arial, sans-serif" font-size="64" font-weight="800" fill="#10B981">2</text>
+    <text x="1208" y="438" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#10B981">↗ +8% from last week</text>
+    <text x="1460" y="438" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Completed</text>
+  </g>
+
+  <g>
+    <rect x="72" y="508" width="504" height="396" rx="28" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+    <rect x="596" y="508" width="428" height="396" rx="28" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+    <rect x="1044" y="508" width="476" height="396" rx="28" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+
+    <text x="104" y="570" font-family="Arial, sans-serif" font-size="28" font-weight="800" fill="#0F172A">Status Distribution</text>
+    <text x="628" y="570" font-family="Arial, sans-serif" font-size="28" font-weight="800" fill="#0F172A">Priority Breakdown</text>
+    <text x="1076" y="570" font-family="Arial, sans-serif" font-size="28" font-weight="800" fill="#0F172A">Weekly Trend</text>
+
+    <g stroke="#E7EEF8" stroke-width="2">
+      <line x1="150" y1="804" x2="518" y2="804"/>
+      <line x1="150" y1="736" x2="518" y2="736"/>
+      <line x1="150" y1="668" x2="518" y2="668"/>
+      <line x1="150" y1="600" x2="518" y2="600"/>
+    </g>
+    <rect x="176" y="622" width="96" height="182" rx="16" fill="#F94144"/>
+    <rect x="316" y="668" width="96" height="136" rx="16" fill="#F59E0B"/>
+    <rect x="456" y="714" width="96" height="90" rx="16" fill="#10B981"/>
+    <text x="196" y="836" font-family="Arial, sans-serif" font-size="18" fill="#64748B">Open</text>
+    <text x="334" y="836" font-family="Arial, sans-serif" font-size="18" fill="#64748B">In Progress</text>
+    <text x="482" y="836" font-family="Arial, sans-serif" font-size="18" fill="#64748B">Resolved</text>
+
+    <circle cx="810" cy="716" r="114" fill="none" stroke="#F94144" stroke-width="44" stroke-dasharray="358 716"/>
+    <circle cx="810" cy="716" r="114" fill="none" stroke="#F59E0B" stroke-width="44" stroke-dasharray="154 716" stroke-dashoffset="-358"/>
+    <circle cx="810" cy="716" r="114" fill="none" stroke="#10B981" stroke-width="44" stroke-dasharray="204 716" stroke-dashoffset="-512"/>
+    <circle cx="810" cy="716" r="68" fill="#FFFFFF"/>
+    <circle cx="734" cy="860" r="11" fill="#F94144"/>
+    <circle cx="848" cy="860" r="11" fill="#F59E0B"/>
+    <circle cx="954" cy="860" r="11" fill="#10B981"/>
+    <text x="756" y="867" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">High</text>
+    <text x="870" y="867" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Medium</text>
+    <text x="976" y="867" font-family="Arial, sans-serif" font-size="16" fill="#0F172A">Low</text>
+
+    <g stroke="#E7EEF8" stroke-width="2">
+      <line x1="1104" y1="804" x2="1476" y2="804"/>
+      <line x1="1104" y1="736" x2="1476" y2="736"/>
+      <line x1="1104" y1="668" x2="1476" y2="668"/>
+      <line x1="1104" y1="600" x2="1476" y2="600"/>
+      <line x1="1170" y1="600" x2="1170" y2="804"/>
+      <line x1="1264" y1="600" x2="1264" y2="804"/>
+      <line x1="1358" y1="600" x2="1358" y2="804"/>
+    </g>
+    <path d="M1116 768 C1164 742 1214 786 1264 672 C1310 568 1378 620 1420 786 C1442 864 1466 804 1476 804" stroke="#3B82F6" stroke-width="6" stroke-linecap="round"/>
+    <path d="M1116 804 C1160 804 1204 804 1248 804 C1292 804 1336 804 1380 804 C1424 804 1450 804 1476 804" stroke="#10B981" stroke-width="6" stroke-linecap="round"/>
+    <g fill="#3B82F6">
+      <circle cx="1116" cy="768" r="7"/><circle cx="1212" cy="786" r="7"/><circle cx="1264" cy="672" r="7"/><circle cx="1358" cy="620" r="7"/><circle cx="1420" cy="786" r="7"/>
+    </g>
+  </g>
+</svg>

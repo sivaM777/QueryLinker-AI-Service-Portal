@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#e0f2fe"/>
+      <stop offset="1" stop-color="#eef2ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" rx="24" fill="url(#bg)"/>
+  <rect x="80" y="110" width="640" height="260" rx="18" fill="#ffffff" stroke="#e5e7eb"/>
+  <circle cx="150" cy="155" r="10" fill="#ef4444"/>
+  <circle cx="180" cy="155" r="10" fill="#f59e0b"/>
+  <circle cx="210" cy="155" r="10" fill="#22c55e"/>
+  <text x="120" y="95" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#0f172a">
+    Animation: Reconnecting VPN
+  </text>
+  <text x="120" y="205" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#111827">
+    1) Disconnect &amp; reconnect Wi‑Fi
+  </text>
+  <text x="120" y="245" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#111827">
+    2) Open VPN client and retry connection
+  </text>
+  <text x="120" y="285" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#111827">
+    3) If error persists, switch server / re‑auth
+  </text>
+  <g transform="translate(560,240)">
+    <circle cx="0" cy="0" r="48" fill="#2563eb" opacity="0.12"/>
+    <path d="M20 -8a28 28 0 1 0 8 20" fill="none" stroke="#2563eb" stroke-width="10" stroke-linecap="round"/>
+    <path d="M28 -8h-18v-18" fill="none" stroke="#2563eb" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
+

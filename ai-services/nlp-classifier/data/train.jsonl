@@ -1,0 +1,88 @@
+{"text": "VPN disconnects every 5 minutes after password reset", "intent": "INCIDENT", "domain": "NETWORK_VPN_WIFI", "risk": "MEDIUM"}
+{"text": "Can't login to SAP", "intent": "SERVICE_REQUEST", "domain": "BUSINESS_APP_ERP_CRM", "risk": "MEDIUM"}
+{"text": "Need access to Salesforce", "intent": "SERVICE_REQUEST", "domain": "BUSINESS_APP_ERP_CRM", "risk": "LOW"}
+{"text": "Outlook not opening", "intent": "INCIDENT", "domain": "EMAIL_COLLAB", "risk": "MEDIUM"}
+{"text": "Laptop overheating", "intent": "INCIDENT", "domain": "HARDWARE_PERIPHERAL", "risk": "HIGH"}
+{"text": "Suspicious email received", "intent": "SECURITY_REPORT", "domain": "SECURITY_INCIDENT", "risk": "HIGH"}
+{"text": "System not working", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "New software request", "intent": "SERVICE_REQUEST", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "LOW"}
+{"text": "Forgot password", "intent": "ACCOUNT_ACCESS", "domain": "IDENTITY_ACCESS", "risk": "LOW"}
+{"text": "Requesting admin access", "intent": "ACCOUNT_ACCESS", "domain": "IDENTITY_ACCESS", "risk": "MEDIUM"}
+{"text": "Cannot connect to WiFi network", "intent": "INCIDENT", "domain": "NETWORK_VPN_WIFI", "risk": "MEDIUM"}
+{"text": "WiFi password not working", "intent": "INCIDENT", "domain": "NETWORK_VPN_WIFI", "risk": "LOW"}
+{"text": "VPN connection keeps dropping", "intent": "INCIDENT", "domain": "NETWORK_VPN_WIFI", "risk": "MEDIUM"}
+{"text": "Need VPN access for remote work", "intent": "SERVICE_REQUEST", "domain": "NETWORK_VPN_WIFI", "risk": "LOW"}
+{"text": "Internet is slow", "intent": "INCIDENT", "domain": "NETWORK_VPN_WIFI", "risk": "MEDIUM"}
+{"text": "Cannot access network drive", "intent": "INCIDENT", "domain": "NETWORK_VPN_WIFI", "risk": "MEDIUM"}
+{"text": "Email not sending", "intent": "INCIDENT", "domain": "EMAIL_COLLAB", "risk": "MEDIUM"}
+{"text": "Email not receiving messages", "intent": "INCIDENT", "domain": "EMAIL_COLLAB", "risk": "MEDIUM"}
+{"text": "Outlook calendar not syncing", "intent": "INCIDENT", "domain": "EMAIL_COLLAB", "risk": "LOW"}
+{"text": "Cannot access shared mailbox", "intent": "SERVICE_REQUEST", "domain": "EMAIL_COLLAB", "risk": "MEDIUM"}
+{"text": "Email attachment too large", "intent": "HOW_TO", "domain": "EMAIL_COLLAB", "risk": "LOW"}
+{"text": "Password expired need to reset", "intent": "ACCOUNT_ACCESS", "domain": "IDENTITY_ACCESS", "risk": "LOW"}
+{"text": "Account locked out", "intent": "ACCOUNT_ACCESS", "domain": "IDENTITY_ACCESS", "risk": "MEDIUM"}
+{"text": "Need to unlock my account", "intent": "ACCOUNT_ACCESS", "domain": "IDENTITY_ACCESS", "risk": "MEDIUM"}
+{"text": "Forgot my username", "intent": "ACCOUNT_ACCESS", "domain": "IDENTITY_ACCESS", "risk": "LOW"}
+{"text": "Need access to shared folder", "intent": "SERVICE_REQUEST", "domain": "IDENTITY_ACCESS", "risk": "LOW"}
+{"text": "Requesting permissions for application", "intent": "SERVICE_REQUEST", "domain": "IDENTITY_ACCESS", "risk": "LOW"}
+{"text": "Laptop screen is black", "intent": "INCIDENT", "domain": "HARDWARE_PERIPHERAL", "risk": "HIGH"}
+{"text": "Keyboard not working", "intent": "INCIDENT", "domain": "HARDWARE_PERIPHERAL", "risk": "MEDIUM"}
+{"text": "Mouse stopped responding", "intent": "INCIDENT", "domain": "HARDWARE_PERIPHERAL", "risk": "MEDIUM"}
+{"text": "Printer not printing", "intent": "INCIDENT", "domain": "HARDWARE_PERIPHERAL", "risk": "MEDIUM"}
+{"text": "Monitor display is blurry", "intent": "INCIDENT", "domain": "HARDWARE_PERIPHERAL", "risk": "LOW"}
+{"text": "Need new laptop", "intent": "SERVICE_REQUEST", "domain": "HARDWARE_PERIPHERAL", "risk": "LOW"}
+{"text": "Headphones not working", "intent": "INCIDENT", "domain": "HARDWARE_PERIPHERAL", "risk": "LOW"}
+{"text": "Install Microsoft Office", "intent": "SERVICE_REQUEST", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "LOW"}
+{"text": "Need Adobe Photoshop license", "intent": "SERVICE_REQUEST", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "LOW"}
+{"text": "Software update failed", "intent": "INCIDENT", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "MEDIUM"}
+{"text": "Application crashes on startup", "intent": "INCIDENT", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "MEDIUM"}
+{"text": "Cannot install software", "intent": "INCIDENT", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "MEDIUM"}
+{"text": "Need license key for software", "intent": "SERVICE_REQUEST", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "LOW"}
+{"text": "Cannot login to Oracle system", "intent": "INCIDENT", "domain": "BUSINESS_APP_ERP_CRM", "risk": "MEDIUM"}
+{"text": "SAP transaction not working", "intent": "INCIDENT", "domain": "BUSINESS_APP_ERP_CRM", "risk": "HIGH"}
+{"text": "Need access to CRM system", "intent": "SERVICE_REQUEST", "domain": "BUSINESS_APP_ERP_CRM", "risk": "LOW"}
+{"text": "ERP system is slow", "intent": "INCIDENT", "domain": "BUSINESS_APP_ERP_CRM", "risk": "MEDIUM"}
+{"text": "Received phishing email", "intent": "SECURITY_REPORT", "domain": "SECURITY_INCIDENT", "risk": "HIGH"}
+{"text": "Computer infected with virus", "intent": "SECURITY_REPORT", "domain": "SECURITY_INCIDENT", "risk": "CRITICAL"}
+{"text": "Suspicious activity on account", "intent": "SECURITY_REPORT", "domain": "SECURITY_INCIDENT", "risk": "HIGH"}
+{"text": "Lost company laptop", "intent": "SECURITY_REPORT", "domain": "SECURITY_INCIDENT", "risk": "HIGH"}
+{"text": "Unauthorized access detected", "intent": "SECURITY_REPORT", "domain": "SECURITY_INCIDENT", "risk": "CRITICAL"}
+{"text": "How do I reset my password", "intent": "HOW_TO", "domain": "IDENTITY_ACCESS", "risk": "LOW"}
+{"text": "How to connect to VPN", "intent": "HOW_TO", "domain": "NETWORK_VPN_WIFI", "risk": "LOW"}
+{"text": "How to access shared drive", "intent": "HOW_TO", "domain": "NETWORK_VPN_WIFI", "risk": "LOW"}
+{"text": "How to set up email on phone", "intent": "HOW_TO", "domain": "EMAIL_COLLAB", "risk": "LOW"}
+{"text": "How to print from laptop", "intent": "HOW_TO", "domain": "HARDWARE_PERIPHERAL", "risk": "LOW"}
+{"text": "How to install printer driver", "intent": "HOW_TO", "domain": "HARDWARE_PERIPHERAL", "risk": "LOW"}
+{"text": "How to request software", "intent": "HOW_TO", "domain": "SOFTWARE_INSTALL_LICENSE", "risk": "LOW"}
+{"text": "How to access knowledge base", "intent": "HOW_TO", "domain": "KB_GENERAL", "risk": "LOW"}
+{"text": "My computer is frozen", "intent": "INCIDENT", "domain": "ENDPOINT_DEVICE", "risk": "HIGH"}
+{"text": "Blue screen error", "intent": "INCIDENT", "domain": "ENDPOINT_DEVICE", "risk": "HIGH"}
+{"text": "Computer running very slow", "intent": "INCIDENT", "domain": "ENDPOINT_DEVICE", "risk": "MEDIUM"}
+{"text": "Windows update failed", "intent": "INCIDENT", "domain": "ENDPOINT_DEVICE", "risk": "MEDIUM"}
+{"text": "Cannot boot computer", "intent": "INCIDENT", "domain": "ENDPOINT_DEVICE", "risk": "HIGH"}
+{"text": "Need help with something", "intent": "UNKNOWN", "domain": "OTHER", "risk": "LOW"}
+{"text": "General question", "intent": "UNKNOWN", "domain": "OTHER", "risk": "LOW"}
+{"text": "vpn not working", "intent": "INCIDENT", "domain": "NETWORK_VPN_WIFI", "risk": "MEDIUM"}
+{"text": "backup failed", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup not working", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup error", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "cannot backup files", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup system failed", "intent": "INCIDENT", "domain": "OTHER", "risk": "HIGH"}
+{"text": "database backup failed", "intent": "INCIDENT", "domain": "OTHER", "risk": "HIGH"}
+{"text": "server backup error", "intent": "INCIDENT", "domain": "OTHER", "risk": "HIGH"}
+{"text": "cloud backup not working", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup drive full", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup storage full", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "restore backup", "intent": "SERVICE_REQUEST", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "need to restore from backup", "intent": "SERVICE_REQUEST", "domain": "OTHER", "risk": "HIGH"}
+{"text": "backup corrupted", "intent": "INCIDENT", "domain": "OTHER", "risk": "HIGH"}
+{"text": "backup verification failed", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup schedule not running", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "automatic backup stopped", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup job failed", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup process error", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup configuration issue", "intent": "INCIDENT", "domain": "OTHER", "risk": "MEDIUM"}
+{"text": "backup retention policy", "intent": "HOW_TO", "domain": "OTHER", "risk": "LOW"}
+{"text": "how to configure backup", "intent": "HOW_TO", "domain": "OTHER", "risk": "LOW"}
+{"text": "backup best practices", "intent": "HOW_TO", "domain": "OTHER", "risk": "LOW"}
+{"text": "backup troubleshooting guide", "intent": "HOW_TO", "domain": "OTHER", "risk": "LOW"}

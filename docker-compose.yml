@@ -1,0 +1,145 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../infra/docker/frontend.Dockerfile
+      args:
+        - VITE_API_URL=/api/v1
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../infra/docker/backend.Dockerfile
+    command: >-
+      sh -c "until node dist/utils/migrate.js; do echo 'Waiting for db...'; sleep 2; done;
+      if [ \"$NODE_ENV\" = \"development\" ]; then node dist/utils/seed.js; else echo 'Seed skipped'; fi;
+      node dist/server.js"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-pit_portal}
+      - DB_SSL=false
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - ACCESS_TOKEN_TTL=15m
+      - REFRESH_TOKEN_TTL_DAYS=14
+      - AI_CLASSIFIER_URL=http://ai-nlp:8001/predict
+      - AI_TIER=${AI_TIER:-free}
+      - LLM_PROVIDER=${LLM_PROVIDER:-groq}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_CHAT_MODEL=${GROQ_CHAT_MODEL:-llama-3.1-8b-instant}
+      - GROQ_EXTRACTION_MODEL=${GROQ_EXTRACTION_MODEL:-llama-3.3-70b-versatile}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - AI_NOTIFICATION_PROVIDER=${AI_NOTIFICATION_PROVIDER:-auto}
+      - AI_NOTIFICATIONS_ENABLED=${AI_NOTIFICATIONS_ENABLED:-true}
+      - AI_NOTIFICATIONS_EMAIL_ENABLED=${AI_NOTIFICATIONS_EMAIL_ENABLED:-true}
+      - AI_NOTIFICATION_TIMEOUT_MS=${AI_NOTIFICATION_TIMEOUT_MS:-1400}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - FRONTEND_URL=http://localhost:3000
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - AZURE_REDIRECT_URI=${AZURE_REDIRECT_URI:-}
+    depends_on:
+      - db
+      - ai-nlp
+      - redis
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  ai-nlp:
+    build:
+      context: ./ai-services/nlp-classifier
+      dockerfile: ../../infra/docker/ai.Dockerfile
+    environment:
+      - AI_TIER=${AI_TIER:-free}
+      - AI_AUTO_TRAIN=${AI_AUTO_TRAIN:-true}
+      - AI_CLOUD_PROVIDER=
+      - AI_EMBED_PROVIDER=local
+      - AI_CLOUD_CONFIDENCE_THRESHOLD=${AI_CLOUD_CONFIDENCE_THRESHOLD:-0.65}
+      - AI_CLOUD_TIMEOUT_SECONDS=${AI_CLOUD_TIMEOUT_SECONDS:-10}
+      - AI_LOCAL_HF_ENABLED=false
+      - AI_LOCAL_HF_ALWAYS=${AI_LOCAL_HF_ALWAYS:-}
+      - AI_LOCAL_HF_TRIGGER_THRESHOLD=${AI_LOCAL_HF_TRIGGER_THRESHOLD:-0.55}
+      - AI_LOCAL_HF_MIN_SCORE=${AI_LOCAL_HF_MIN_SCORE:-0.60}
+      - AI_LOCAL_HF_OVERRIDE_DELTA=${AI_LOCAL_HF_OVERRIDE_DELTA:-0.12}
+    volumes:
+      - ai_model:/app/model
+      - hf_cache:/app/hf-cache
+
+  db:
+    image: ankane/pgvector:latest
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-pit_portal}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-pit_portal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redisdata:/data
+
+  glpi-db:
+    image: mariadb:10.11
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=glpidb
+      - MYSQL_USER=glpi_user
+      - MYSQL_PASSWORD=glpi_password
+    volumes:
+      - glpi_db_data:/var/lib/mysql
+
+  glpi-web:
+    image: diouxx/glpi:latest
+    ports:
+      - "8080:80"
+    environment:
+      - TIMEZONE=Asia/Kolkata
+    depends_on:
+      - glpi-db
+    volumes:
+      - glpi_data:/var/www/html/glpi
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - frontend
+      - backend
+      - ai-nlp
+
+volumes:
+  pgdata:
+  redisdata:
+  glpi_db_data:
+  glpi_data:
+  ai_model:
+  hf_cache:

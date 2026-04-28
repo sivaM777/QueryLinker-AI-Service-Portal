@@ -1,0 +1,1 @@
+SELECT name, last_error_at, last_success_at, CASE WHEN last_error_at IS NOT NULL AND (last_success_at IS NULL OR last_error_at > last_success_at) THEN 'ERROR' ELSE 'OK' END as calc_status FROM email_sources;

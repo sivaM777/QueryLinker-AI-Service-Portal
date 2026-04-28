@@ -1,0 +1,22 @@
+{
+  "name": "PG-IT Service Portal",
+  "short_name": "PG-IT",
+  "description": "AI-powered IT service management system",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1C2D",
+  "theme_color": "#0B1C2D",
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

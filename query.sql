@@ -1,0 +1,1 @@
+SELECT imap_host, imap_port FROM email_sources;

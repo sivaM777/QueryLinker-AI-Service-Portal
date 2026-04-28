@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "PG-IT Service Portal",
+    "slug": "pg-it-service-portal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.pgit.serviceportal",
+      "versionCode": 1,
+      "usesCleartextTraffic": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "059e9550-ab31-451e-9aa5-354aa9cb3620"
+      }
+    }
+  }
+}

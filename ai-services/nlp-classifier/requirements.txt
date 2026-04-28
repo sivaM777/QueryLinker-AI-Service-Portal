@@ -1,0 +1,12 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+numpy==1.24.3
+scikit-learn==1.4.2
+joblib==1.4.2
+python-multipart==0.0.9
+requests==2.32.3
+transformers==4.45.2
+sentence-transformers==3.2.1
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2

@@ -1,0 +1,97 @@
+<svg width="1600" height="1024" viewBox="0 0 1600 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1024" rx="36" fill="#F7FAFF"/>
+  <rect x="24" y="24" width="1552" height="976" rx="30" fill="#FFFFFF" stroke="#DCE8F8" stroke-width="2"/>
+
+  <rect x="48" y="48" width="1504" height="84" rx="28" fill="rgba(255,255,255,0.95)" stroke="#E5EEF9" stroke-width="2"/>
+  <image href="/assets/branding/querylinker-logo.png" x="78" y="60" width="72" height="60" preserveAspectRatio="xMidYMid meet"/>
+  <text x="172" y="96" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0F172A">Admin</text>
+  <text x="266" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Overview</text>
+  <rect x="554" y="64" width="180" height="50" rx="25" fill="#DBE8FF"/>
+  <text x="590" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">Workspaces</text>
+  <text x="774" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Governance</text>
+  <text x="952" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Organization</text>
+  <text x="1134" y="96" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Resources</text>
+  <rect x="1258" y="64" width="242" height="50" rx="25" fill="#EEF4FF" stroke="#C7DBFF" stroke-width="2"/>
+  <text x="1298" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">DEMO</text>
+  <text x="1372" y="97" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0F172A">Admin</text>
+
+  <text x="72" y="196" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#2563EB">← Back to Boards</text>
+  <rect x="72" y="226" width="172" height="40" rx="20" fill="#F1F5F9"/>
+  <rect x="258" y="226" width="106" height="40" rx="20" fill="#F1F5F9"/>
+  <text x="94" y="252" font-family="Arial, sans-serif" font-size="16" fill="#334155">Ticket Board • FLEXIBLE</text>
+  <text x="288" y="252" font-family="Arial, sans-serif" font-size="16" fill="#334155">Personal</text>
+  <text x="72" y="316" font-family="Arial, sans-serif" font-size="40" font-weight="800" fill="#0F172A">board 1</text>
+  <text x="72" y="362" font-family="Arial, sans-serif" font-size="22" fill="#475569">Manage live ticket movement and collaboration directly from the board.</text>
+  <rect x="1270" y="188" width="138" height="54" rx="18" fill="#FFFFFF" stroke="#AEC8FF" stroke-width="2"/>
+  <rect x="1428" y="188" width="148" height="54" rx="18" fill="#FFFFFF" stroke="#AEC8FF" stroke-width="2"/>
+  <text x="1312" y="222" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">Refresh</text>
+  <text x="1470" y="222" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#2563EB">Add Column</text>
+
+  <rect x="72" y="402" width="1456" height="534" rx="30" fill="#FFFFFF" stroke="#E5EEF9" stroke-width="2"/>
+  <rect x="96" y="430" width="102" height="38" rx="19" fill="#F1F5F9"/>
+  <rect x="212" y="430" width="102" height="38" rx="19" fill="#F1F5F9"/>
+  <rect x="328" y="430" width="122" height="38" rx="19" fill="#F1F5F9"/>
+  <text x="116" y="454" font-family="Arial, sans-serif" font-size="16" fill="#334155">4 columns</text>
+  <text x="230" y="454" font-family="Arial, sans-serif" font-size="16" fill="#334155">5 cards</text>
+  <text x="350" y="454" font-family="Arial, sans-serif" font-size="16" fill="#334155">1 swimlane</text>
+
+  <g>
+    <rect x="96" y="512" width="320" height="86" rx="24" fill="#FFFFFF" stroke="#2563EB" stroke-width="4"/>
+    <rect x="438" y="512" width="320" height="86" rx="24" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="4"/>
+    <rect x="780" y="512" width="320" height="86" rx="24" fill="#FFFFFF" stroke="#F59E0B" stroke-width="4"/>
+    <rect x="1122" y="512" width="320" height="86" rx="24" fill="#FFFFFF" stroke="#10B981" stroke-width="4"/>
+    <text x="124" y="560" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#0F172A">Open</text>
+    <text x="464" y="560" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#0F172A">In Progress</text>
+    <text x="806" y="560" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#0F172A">Waiting</text>
+    <text x="1148" y="560" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#0F172A">Resolved</text>
+  </g>
+
+  <g font-family="Arial, sans-serif">
+    <rect x="96" y="620" width="320" height="196" rx="24" fill="#FFFFFF" stroke="#D8E6FA" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="122" y="670" font-size="22" font-weight="800" fill="#0F172A">INC000000068 • Suspicious sign-in</text>
+    <text x="122" y="704" font-size="22" font-weight="800" fill="#0F172A">alert</text>
+    <text x="122" y="744" font-size="16" fill="#475569">Security alert triggered after impossible</text>
+    <text x="122" y="772" font-size="16" fill="#475569">travel sign-in from an unknown location.</text>
+    <rect x="122" y="804" width="64" height="34" rx="17" fill="#F1F5F9"/>
+    <rect x="196" y="804" width="72" height="34" rx="17" fill="#F1F5F9"/>
+    <rect x="278" y="804" width="124" height="34" rx="17" fill="#F1F5F9"/>
+    <text x="142" y="826" font-size="16" fill="#0F172A">Open</text>
+    <text x="216" y="826" font-size="16" fill="#0F172A">HIGH</text>
+    <text x="300" y="826" font-size="16" fill="#0F172A">L3 Expert Team</text>
+
+    <rect x="438" y="620" width="320" height="196" rx="24" fill="#FFFFFF" stroke="#D8E6FA" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="464" y="670" font-size="22" font-weight="800" fill="#0F172A">PRB000000070 • Problem</text>
+    <text x="464" y="704" font-size="22" font-weight="800" fill="#0F172A">Investigation: My laptop is broken</text>
+    <text x="464" y="744" font-size="16" fill="#475569">my laptop screen is broken while driving</text>
+    <rect x="464" y="804" width="104" height="34" rx="17" fill="#F1F5F9"/>
+    <rect x="578" y="804" width="72" height="34" rx="17" fill="#F1F5F9"/>
+    <text x="486" y="826" font-size="16" fill="#0F172A">In Progress</text>
+    <text x="598" y="826" font-size="16" fill="#0F172A">HIGH</text>
+
+    <rect x="438" y="834" width="320" height="196" rx="24" fill="#FFFFFF" stroke="#D8E6FA" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="464" y="884" font-size="22" font-weight="800" fill="#0F172A">INC000000065 • VPN disconnects</text>
+    <text x="464" y="918" font-size="22" font-weight="800" fill="#0F172A">while working from home</text>
+    <text x="464" y="958" font-size="16" fill="#475569">User reports VPN dropping every 10 minutes</text>
+    <text x="464" y="986" font-size="16" fill="#475569">during remote work.</text>
+
+    <rect x="780" y="620" width="320" height="196" rx="24" fill="#FFFFFF" stroke="#D8E6FA" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="806" y="670" font-size="22" font-weight="800" fill="#0F172A">INC000000064 • My laptop screen</text>
+    <text x="806" y="704" font-size="22" font-weight="800" fill="#0F172A">is broken!</text>
+    <text x="806" y="744" font-size="16" fill="#475569">my laptop screen is broken while driving</text>
+    <rect x="806" y="804" width="82" height="34" rx="17" fill="#F1F5F9"/>
+    <rect x="898" y="804" width="72" height="34" rx="17" fill="#F1F5F9"/>
+    <text x="826" y="826" font-size="16" fill="#0F172A">Waiting</text>
+    <text x="918" y="826" font-size="16" fill="#0F172A">HIGH</text>
+
+    <rect x="1122" y="620" width="320" height="196" rx="24" fill="#FFFFFF" stroke="#D8E6FA" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="1148" y="670" font-size="22" font-weight="800" fill="#0F172A">CHG000000071 • Change Request:</text>
+    <text x="1148" y="704" font-size="22" font-weight="800" fill="#0F172A">Problem Investigation</text>
+    <text x="1148" y="744" font-size="16" fill="#475569">my laptop screen is broken while driving</text>
+    <rect x="1148" y="804" width="98" height="34" rx="17" fill="#F1F5F9"/>
+    <rect x="1256" y="804" width="72" height="34" rx="17" fill="#F1F5F9"/>
+    <rect x="1338" y="804" width="108" height="34" rx="17" fill="#F1F5F9"/>
+    <text x="1168" y="826" font-size="16" fill="#0F172A">Resolved</text>
+    <text x="1276" y="826" font-size="16" fill="#0F172A">HIGH</text>
+    <text x="1354" y="826" font-size="16" fill="#0F172A">Agent User</text>
+  </g>
+</svg>

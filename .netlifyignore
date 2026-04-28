@@ -1,0 +1,17 @@
+model/
+apps/
+backend/
+ai-services/
+train/
+infra/
+scripts/
+.npm-cache/
+.edge-temp/
+_tmp/
+frontend/node_modules/
+frontend/dist/
+deploy-*.zip
+tmp_employee.cookie
+.env
+README.md
+PG-IT_Service_Portal_College_Report.md
