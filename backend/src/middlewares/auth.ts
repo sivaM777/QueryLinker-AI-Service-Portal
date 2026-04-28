@@ -1,5 +1,4 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { pool } from "../config/db.js";
 
 export type UserRole = "EMPLOYEE" | "AGENT" | "MANAGER" | "ADMIN";
 
@@ -25,19 +24,6 @@ export const requireAuth = async (request: FastifyRequest, reply: FastifyReply) 
   try {
     const payload = await request.jwtVerify<AuthUser>();
     if (!payload?.id) {
-      return reply.code(401).send({ message: "Unauthorized" });
-    }
-    const res = await pool.query<{ active_session_id: string | null; active_session_tab_id: string | null }>(
-      "SELECT active_session_id, active_session_tab_id FROM users WHERE id = $1",
-      [payload.id]
-    );
-    const activeSessionId = res.rows[0]?.active_session_id ?? null;
-    const activeTabId = res.rows[0]?.active_session_tab_id ?? null;
-    const tabIdHeader = String((request.headers as Record<string, unknown>)["x-tab-id"] ?? "").trim();
-    if (!activeSessionId || !payload.session_id || payload.session_id !== activeSessionId) {
-      return reply.code(401).send({ message: "Unauthorized" });
-    }
-    if (activeTabId && (!tabIdHeader || tabIdHeader !== activeTabId)) {
       return reply.code(401).send({ message: "Unauthorized" });
     }
     request.authUser = payload;
