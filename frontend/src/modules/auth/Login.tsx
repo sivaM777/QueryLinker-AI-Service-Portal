@@ -9,10 +9,6 @@ import {
   Typography,
   Alert,
   Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Paper,
   Checkbox,
   FormControlLabel,
@@ -37,64 +33,12 @@ export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [conflictOpen, setConflictOpen] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement | null>(null);
 
   type LocationState = { from?: { pathname?: string } };
   const state = location.state as LocationState | null;
   const from = state?.from?.pathname || "/";
   const azureError = searchParams.get("azure_error");
-
-  const readPresenceForEmail = React.useCallback((emailToCheck: string) => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = window.localStorage.getItem(`active_session:${emailToCheck.toLowerCase()}`);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { tabId?: string; url?: string; ts?: number };
-      if (!parsed?.tabId || !parsed.ts) return null;
-      if (Date.now() - parsed.ts > 15_000) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const requestExistingSession = React.useCallback(async (emailToCheck: string) => {
-    if (typeof window === "undefined") return null;
-    const lower = emailToCheck.toLowerCase();
-    const presence = readPresenceForEmail(lower);
-    if (presence?.tabId) {
-      return {
-        tabId: presence.tabId,
-        url: presence.url && !presence.url.startsWith("/login") ? presence.url : undefined,
-      };
-    }
-    if (typeof BroadcastChannel === "undefined") return null;
-    const requestId = `${Date.now()}-${Math.random()}`;
-    const channel = new BroadcastChannel("auth-session");
-
-    return new Promise<{ tabId?: string; url?: string } | null>((resolve) => {
-      const timeout = window.setTimeout(() => {
-        channel.removeEventListener("message", onMessage);
-        channel.close();
-        resolve(null);
-      }, 900);
-
-      const onMessage = (event: MessageEvent) => {
-        const data = event.data as any;
-        if (data?.type === "session-active" && data.requestId === requestId) {
-          window.clearTimeout(timeout);
-          channel.removeEventListener("message", onMessage);
-          channel.close();
-          const url = data.url && !String(data.url).startsWith("/login") ? data.url : undefined;
-          resolve(data.tabId ? { tabId: data.tabId, url } : null);
-        }
-      };
-
-      channel.addEventListener("message", onMessage);
-      channel.postMessage({ type: "check-session", email: lower, requestId });
-    });
-  }, [readPresenceForEmail]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,11 +61,6 @@ export const Login: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const existing = await requestExistingSession(trimmedEmail);
-      if (existing) {
-        setConflictOpen(true);
-        return;
-      }
       const u = await login(trimmedEmail, password);
       
       // Determine the best redirect target.
@@ -158,12 +97,6 @@ export const Login: React.FC = () => {
       navigate(target, { replace: true });
     } catch (err: unknown) {
       const message = getApiErrorMessage(err, "Invalid email or password");
-      const isSessionConflict = typeof err === "object" && err !== null && "response" in err
-        && (err as any).response?.status === 409;
-      if (isSessionConflict) {
-        setConflictOpen(true);
-        return;
-      }
       setError(message);
     } finally {
       setSubmitting(false);
@@ -181,7 +114,8 @@ export const Login: React.FC = () => {
       current_url: from && from !== "/login" ? from : "/",
     });
 
-    window.location.assign(`/api/v1/auth/azure/start?${params.toString()}`);
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || "/api/v1").replace(/\/+$/, "");
+    window.location.assign(`${apiBaseUrl}/auth/azure/start?${params.toString()}`);
   };
 
   const handleJumpToEmail = () => {
@@ -494,20 +428,6 @@ export const Login: React.FC = () => {
           </Box>
         </Box>
       </Paper>
-
-      <Dialog open={conflictOpen} onClose={() => setConflictOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Account Already Logged In</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
-            This user is already logged in in another tab. Please close the active tab or log out there first.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConflictOpen(false)} variant="contained">
-            Stay Logged Out
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

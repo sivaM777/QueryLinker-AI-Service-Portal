@@ -3,10 +3,26 @@ import { pool } from "../../config/db.js";
 import { processEmailToTicket } from "./email-processor.service.js";
 
 // Redis connection configuration
-const redisConnection = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379"),
-};
+const redisUrl = process.env.REDIS_URL ? new URL(process.env.REDIS_URL) : null;
+
+const redisConnection = redisUrl
+  ? {
+      family: 0,
+      host: redisUrl.hostname,
+      port: Number(redisUrl.port || "6379"),
+      username: redisUrl.username || process.env.REDISUSER || process.env.REDIS_USERNAME || undefined,
+      password: redisUrl.password || process.env.REDISPASSWORD || process.env.REDIS_PASSWORD || undefined,
+      tls: redisUrl.protocol === "rediss:" ? {} : undefined,
+      maxRetriesPerRequest: null,
+    }
+  : {
+      family: 0,
+      host: process.env.REDIS_HOST || process.env.REDISHOST || "localhost",
+      port: Number(process.env.REDIS_PORT || process.env.REDISPORT || "6379"),
+      username: process.env.REDIS_USERNAME || process.env.REDISUSER || undefined,
+      password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD || undefined,
+      maxRetriesPerRequest: null,
+    };
 
 // Email processing queue
 export const emailQueue = new Queue("email-processing", {

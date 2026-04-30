@@ -63,7 +63,6 @@ const accessCookieName = "access_token";
 const refreshCookieName = "refresh_token";
 const refreshTtlDays = env.REFRESH_TOKEN_TTL_DAYS;
 const accessTtl = env.ACCESS_TOKEN_TTL;
-const activeSessionWindowMs = 15_000;
 
 const mobileClientHeader = "x-client-platform";
 const mobileClientValue = "mobile";
@@ -83,11 +82,6 @@ const normalizeSessionUrl = (value?: string | null) => {
   const trimmed = value.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("/login")) return null;
   return trimmed;
-};
-
-const isSessionAlive = (seenAt?: string | null) => {
-  if (!seenAt) return false;
-  return Date.now() - new Date(seenAt).getTime() < activeSessionWindowMs;
 };
 
 const createOrReplaceActiveSession = async (input: {
@@ -128,40 +122,10 @@ const issueBrowserSession = async (args: {
   currentUrl?: string | null;
   setCookies?: boolean;
 }) => {
-  const existingSession = await pool.query<{
-    active_session_id: string | null;
-    active_session_seen_at: string | null;
-    active_session_tab_id: string | null;
-    active_session_url: string | null;
-  }>(
-    `SELECT active_session_id, active_session_seen_at, active_session_tab_id, active_session_url
-     FROM users WHERE id = $1`,
-    [args.user.id]
-  );
-  const active = existingSession.rows[0];
-  const sameTabResuming = Boolean(
-    args.tabId &&
-      active?.active_session_id &&
-      active.active_session_tab_id &&
-      active.active_session_tab_id === args.tabId
-  );
-
-  if (active?.active_session_id && isSessionAlive(active.active_session_seen_at) && !sameTabResuming) {
-    const err = new Error("User already logged in on another tab");
-    (err as any).statusCode = 409;
-    (err as any).code = "SESSION_ACTIVE";
-    (err as any).tabId = active.active_session_tab_id;
-    (err as any).url = active.active_session_url;
-    throw err;
-  }
-
-  await pool.query("UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL", [args.user.id]);
-
   const sessionId = await createOrReplaceActiveSession({
     userId: args.user.id,
     tabId: args.tabId,
     currentUrl: args.currentUrl,
-    sessionId: sameTabResuming ? active?.active_session_id ?? undefined : undefined,
   });
 
   const publicUser = toPublicUser(args.user);
@@ -179,7 +143,7 @@ const issueBrowserSession = async (args: {
     });
   }
 
-  return { publicUser, active, token, refreshToken: refresh.token, sessionId };
+  return { publicUser, token, refreshToken: refresh.token, sessionId };
 };
 
 const parseAzureContext = (raw?: string | null) => {
@@ -198,6 +162,12 @@ const parseAzureContext = (raw?: string | null) => {
   }
 };
 
+const buildWebRedirect = (path: string) => {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const webBaseUrl = env.PUBLIC_WEB_URL?.trim().replace(/\/+$/, "");
+  return webBaseUrl ? `${webBaseUrl}${normalizedPath}` : normalizedPath;
+};
+
 export const authRoutes: FastifyPluginAsync = async (server) => {
   server.post("/demo-login", async (request, reply) => {
     const body = demoLoginSchema.parse(request.body);
@@ -206,25 +176,13 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
     const user = await findUserByEmail(email);
     if (!user) return reply.code(500).send({ message: "Demo user could not be created" });
 
-    try {
-      const { publicUser } = await issueBrowserSession({
-        user,
-        reply,
-        tabId: body.tab_id,
-        currentUrl: body.current_url,
-      });
-      return reply.send({ user: publicUser, demo: true });
-    } catch (error: any) {
-      if (error?.statusCode === 409) {
-        return reply.code(409).send({
-          message: "User already logged in on another tab",
-          code: "SESSION_ACTIVE",
-          tabId: error.tabId,
-          url: error.url,
-        });
-      }
-      throw error;
-    }
+    const { publicUser } = await issueBrowserSession({
+      user,
+      reply,
+      tabId: body.tab_id,
+      currentUrl: body.current_url,
+    });
+    return reply.send({ user: publicUser, demo: true });
   });
 
   server.post("/register-organization", async (request, reply) => {
@@ -275,31 +233,19 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
       return reply.code(401).send({ message: "Invalid credentials" });
     }
 
-    try {
-      const { publicUser, token, refreshToken } = await issueBrowserSession({
-        user,
-        reply,
-        tabId: body.tab_id,
-        currentUrl: body.current_url,
-        setCookies: !isMobileClient,
-      });
+    const { publicUser, token, refreshToken } = await issueBrowserSession({
+      user,
+      reply,
+      tabId: body.tab_id,
+      currentUrl: body.current_url,
+      setCookies: !isMobileClient,
+    });
 
-      if (!isMobileClient) {
-        return reply.send({ user: publicUser });
-      }
-
-      return reply.send({ token, user: publicUser, refresh_token: refreshToken });
-    } catch (error: any) {
-      if (error?.statusCode === 409) {
-        return reply.code(409).send({
-          message: "User already logged in on another tab",
-          code: "SESSION_ACTIVE",
-          tabId: error.tabId,
-          url: error.url,
-        });
-      }
-      throw error;
+    if (!isMobileClient) {
+      return reply.send({ user: publicUser });
     }
+
+    return reply.send({ token, user: publicUser, refresh_token: refreshToken });
   });
 
   server.get("/azure/start", async (request, reply) => {
@@ -348,14 +294,16 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
 
     if (query.error) {
       clearAzureCookies();
-      return reply.redirect(`/login?azure_error=${encodeURIComponent(query.error_description || query.error)}`);
+      return reply.redirect(
+        buildWebRedirect(`/login?azure_error=${encodeURIComponent(query.error_description || query.error)}`)
+      );
     }
 
     const storedState = request.cookies?.[azureStateCookieName];
     const storedContext = request.cookies?.[azureContextCookieName];
     if (!query.code || !query.state || !storedState || query.state !== storedState) {
       clearAzureCookies();
-      return reply.redirect("/login?azure_error=Azure%20sign-in%20state%20validation%20failed");
+      return reply.redirect(buildWebRedirect("/login?azure_error=Azure%20sign-in%20state%20validation%20failed"));
     }
 
     const { tabId, currentUrl } = parseAzureContext(storedContext);
@@ -372,15 +320,12 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
         currentUrl,
       });
 
-      return reply.redirect(getRoleHomePath(user.role));
+      return reply.redirect(buildWebRedirect(currentUrl || getRoleHomePath(user.role)));
     } catch (error: any) {
-      if (error?.statusCode === 409) {
-        return reply.redirect("/login?azure_error=This%20account%20is%20already%20logged%20in%20on%20another%20tab");
-      }
       return reply.redirect(
-        `/login?azure_error=${encodeURIComponent(
-          error instanceof Error ? error.message : "Azure sign-in failed"
-        )}`
+        buildWebRedirect(
+          `/login?azure_error=${encodeURIComponent(error instanceof Error ? error.message : "Azure sign-in failed")}`
+        )
       );
     }
   });
@@ -431,58 +376,16 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
     const dbUser = await findUserById(tokenRow.user_id);
     if (!dbUser) return reply.code(401).send({ message: "Unauthorized" });
 
-    const activeSessionRes = await pool.query<{
-      active_session_id: string | null;
-      active_session_seen_at: string | null;
-      active_session_tab_id: string | null;
-      active_session_url: string | null;
-    }>(
-      `SELECT active_session_id, active_session_seen_at, active_session_tab_id, active_session_url
-       FROM users
-       WHERE id = $1`,
-      [dbUser.id]
-    );
-    const active = activeSessionRes.rows[0];
     const incomingTabId = parsed?.tab_id ?? null;
     const incomingUrl = parsed?.current_url ?? null;
-    const activeAlive = Boolean(active?.active_session_id && isSessionAlive(active.active_session_seen_at));
-    const sameActiveTab = Boolean(
-      incomingTabId &&
-        activeAlive &&
-        active?.active_session_tab_id &&
-        active.active_session_tab_id === incomingTabId
-    );
-
-    if (activeAlive && !sameActiveTab) {
-      return reply.code(409).send({
-        message: "User already logged in on another tab",
-        code: "SESSION_ACTIVE",
-        tabId: active?.active_session_tab_id,
-        url: active?.active_session_url,
-      });
-    }
-
-    const sessionId = sameActiveTab
-      ? active?.active_session_id ?? crypto.randomUUID()
-      : await createOrReplaceActiveSession({
-          userId: dbUser.id,
-          tabId: incomingTabId,
-          currentUrl: incomingUrl,
-        });
+    const sessionId = await createOrReplaceActiveSession({
+      userId: dbUser.id,
+      tabId: incomingTabId,
+      currentUrl: incomingUrl,
+    });
 
     await pool.query("UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1", [tokenRow.id]);
     const rotated = await createRefreshToken(dbUser.id, refreshTtlDays);
-
-    if (sameActiveTab) {
-      await pool.query(
-        `UPDATE users
-         SET active_session_seen_at = now(),
-             active_session_url = COALESCE($2, active_session_url),
-             updated_at = now()
-         WHERE id = $1`,
-        [dbUser.id, normalizeSessionUrl(incomingUrl)]
-      );
-    }
 
     const publicUser = toPublicUser(dbUser);
     const token = await reply.jwtSign(
