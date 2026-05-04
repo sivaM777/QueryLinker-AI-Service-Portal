@@ -139,6 +139,7 @@ export interface TicketRow {
   closed_at: string | null;
   type: TicketType;
   display_number: string | null;
+  integration_metadata?: Record<string, any> | null;
   created_at: string;
   updated_at: string;
 }
@@ -518,6 +519,314 @@ const computeSlaDueDates = (priority: TicketPriority, createdAt: Date) => {
   };
 };
 
+type TicketTriageSource = "ticket_created" | "requester_comment" | "agent_comment";
+
+type TicketAiEnrichment = {
+  category: string | null;
+  confidence: number | null;
+  intent?: string;
+  keywords?: string[];
+  suggestedPriority: TicketPriority | null;
+  summary?: string;
+  entities?: Record<string, any>;
+  autoResolvable?: boolean;
+  suggestedWorkflow?: string;
+  approvalTitle?: string;
+  approvalBody?: string;
+  sentimentLabel?: "NEGATIVE" | "NEUTRAL" | "POSITIVE";
+  sentimentScore?: number | null;
+  routingAction?: "KEEP" | "ASSIGN" | "REASSIGN" | "MANUAL_REVIEW" | null;
+  changeSummary?: string | null;
+  issueSignature?: string | null;
+  provider: "groq" | "classifier";
+  model: string;
+  usedFallback?: boolean;
+};
+
+const AI_CREATE_CATEGORY_CONFIDENCE = 0.55;
+const AI_DYNAMIC_CATEGORY_CONFIDENCE = 0.72;
+const AI_DYNAMIC_REASSIGN_CONFIDENCE = 0.82;
+
+const selectTicketCategory = (
+  currentCategory: string | null,
+  proposedCategory: string | null,
+  confidence: number | null,
+  source: TicketTriageSource
+): string | null => {
+  if (!proposedCategory) return currentCategory;
+
+  const threshold = source === "ticket_created" ? AI_CREATE_CATEGORY_CONFIDENCE : AI_DYNAMIC_CATEGORY_CONFIDENCE;
+  const current = currentCategory?.trim() || null;
+  if (!current || current === "OTHER" || current === "KB_GENERAL") {
+    return confidence === null || confidence >= threshold - 0.1 ? proposedCategory : currentCategory;
+  }
+
+  if (current === proposedCategory) {
+    return current;
+  }
+
+  if (confidence !== null && confidence >= threshold) {
+    return proposedCategory;
+  }
+
+  return current;
+};
+
+const selectTicketPriority = (
+  currentPriority: TicketPriority,
+  suggestedPriority: TicketPriority | null,
+  sentimentLabel: "NEGATIVE" | "NEUTRAL" | "POSITIVE" | undefined,
+  confidence: number | null,
+  source: TicketTriageSource
+): TicketPriority => {
+  let nextPriority = currentPriority;
+  const threshold = source === "ticket_created" ? AI_CREATE_CATEGORY_CONFIDENCE : AI_DYNAMIC_CATEGORY_CONFIDENCE;
+
+  if (suggestedPriority && (confidence === null || confidence >= threshold || suggestedPriority === "HIGH")) {
+    nextPriority = suggestedPriority;
+  }
+
+  if (sentimentLabel === "NEGATIVE" && nextPriority !== "HIGH" && (confidence === null || confidence >= 0.58)) {
+    nextPriority = "HIGH";
+  }
+
+  return nextPriority;
+};
+
+const isRoutingChurnAllowed = (
+  ticket: Pick<TicketRow, "status" | "assigned_team" | "assigned_agent">,
+  source: TicketTriageSource
+): boolean => {
+  if (source === "ticket_created") return true;
+  if (!ticket.assigned_team && !ticket.assigned_agent) return true;
+  return ticket.status === "OPEN" || ticket.status === "WAITING_FOR_CUSTOMER";
+};
+
+const fetchClassifierEnrichment = async (
+  text: string,
+  tier: "free" | "premium"
+): Promise<TicketAiEnrichment | null> => {
+  if (!env.AI_CLASSIFIER_URL) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const base = env.AI_CLASSIFIER_URL.replace(/\/$/, "");
+    const enrichUrl = base.endsWith("/predict")
+      ? `${base.slice(0, -"/predict".length)}/enrich`
+      : `${base}/enrich`;
+
+    const res = await fetch(enrichUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-ai-tier": tier },
+      body: JSON.stringify({ text }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data: any = await res.json().catch(() => null);
+    if (!data || typeof data !== "object") return null;
+
+    return {
+      category: typeof data.category === "string" ? data.category : null,
+      confidence: typeof data.confidence === "number" ? data.confidence : null,
+      intent: typeof data.intent === "string" ? data.intent : undefined,
+      keywords: Array.isArray(data.keywords)
+        ? data.keywords.filter((k: any) => typeof k === "string")
+        : undefined,
+      suggestedPriority:
+        data.priority === "LOW" || data.priority === "MEDIUM" || data.priority === "HIGH"
+          ? data.priority
+          : null,
+      summary: typeof data.summary === "string" ? data.summary : undefined,
+      entities: typeof data.entities === "object" && data.entities ? data.entities : undefined,
+      autoResolvable: typeof data.auto_resolvable === "boolean" ? data.auto_resolvable : undefined,
+      suggestedWorkflow: typeof data.suggested_workflow === "string" ? data.suggested_workflow : undefined,
+      approvalTitle: typeof data.approval_title === "string" ? data.approval_title : undefined,
+      approvalBody: typeof data.approval_body === "string" ? data.approval_body : undefined,
+      sentimentLabel:
+        data.sentiment_label === "NEGATIVE" ||
+        data.sentiment_label === "NEUTRAL" ||
+        data.sentiment_label === "POSITIVE"
+          ? data.sentiment_label
+          : undefined,
+      sentimentScore: typeof data.sentiment_score === "number" ? data.sentiment_score : null,
+      provider: "classifier",
+      model: "ai_classifier_enrich",
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const analyzeTicketWithAi = async (args: {
+  ticket: TicketRow;
+  text: string;
+  source: TicketTriageSource;
+  latestUpdate?: string | null;
+  performedBy: string;
+  tier: "free" | "premium";
+}): Promise<{
+  ticket: TicketRow;
+  aiIntent?: string;
+  aiKeywords?: string[];
+  classificationProvider: "groq" | "classifier" | null;
+  classificationModel: string | null;
+  enrichment: TicketAiEnrichment | null;
+}> => {
+  let enrichment: TicketAiEnrichment | null = null;
+
+  if (env.GROQ_API_KEY) {
+    const groqEnrichment = await enrichTicketForRouting({
+      text: args.text,
+      currentCategory: args.ticket.category,
+      currentPriority: args.ticket.priority,
+      mode: args.source === "ticket_created" ? "create" : "refresh",
+      latestUpdate: args.latestUpdate ?? null,
+    });
+
+    if (groqEnrichment) {
+      enrichment = {
+        category: groqEnrichment.category || null,
+        confidence: typeof groqEnrichment.confidence === "number" ? groqEnrichment.confidence : null,
+        intent: typeof groqEnrichment.intent === "string" ? groqEnrichment.intent : undefined,
+        keywords: Array.isArray(groqEnrichment.keywords) ? groqEnrichment.keywords : undefined,
+        suggestedPriority:
+          groqEnrichment.priority === "LOW" ||
+          groqEnrichment.priority === "MEDIUM" ||
+          groqEnrichment.priority === "HIGH"
+            ? groqEnrichment.priority
+            : null,
+        summary: groqEnrichment.summary || undefined,
+        entities: groqEnrichment.entities || undefined,
+        sentimentLabel: groqEnrichment.sentiment_label || undefined,
+        sentimentScore: groqEnrichment.sentiment_score ?? null,
+        routingAction: groqEnrichment.routing_action ?? null,
+        changeSummary: groqEnrichment.change_summary ?? null,
+        issueSignature: groqEnrichment.issue_signature ?? null,
+        provider: "groq",
+        model: groqEnrichment.model || env.GROQ_EXTRACTION_MODEL || "openai/gpt-oss-120b",
+        usedFallback: Boolean(groqEnrichment.used_fallback),
+      };
+    }
+  }
+
+  if (!enrichment) {
+    enrichment = await fetchClassifierEnrichment(args.text, args.tier);
+  }
+
+  if (!enrichment) {
+    return {
+      ticket: args.ticket,
+      classificationProvider: null,
+      classificationModel: null,
+      enrichment: null,
+    };
+  }
+
+  const aiIntent = enrichment.intent;
+  const aiKeywords = enrichment.keywords;
+  const nextCategory = selectTicketCategory(
+    args.ticket.category,
+    enrichment.category,
+    enrichment.confidence,
+    args.source
+  );
+  const nextPriority = selectTicketPriority(
+    args.ticket.priority,
+    enrichment.suggestedPriority,
+    enrichment.sentimentLabel,
+    enrichment.confidence,
+    args.source
+  );
+
+  const { firstResponseDueAt, resolutionDueAt } = computeSlaDueDates(
+    nextPriority,
+    new Date(args.ticket.created_at)
+  );
+
+  const aiMeta = {
+    summary: enrichment.summary,
+    intent: aiIntent,
+    keywords: aiKeywords,
+    entities: enrichment.entities,
+    priority_suggestion: enrichment.suggestedPriority,
+    auto_resolvable: enrichment.autoResolvable,
+    suggested_workflow: enrichment.suggestedWorkflow,
+    approval_title: enrichment.approvalTitle,
+    approval_body: enrichment.approvalBody,
+    model_confidence: enrichment.confidence,
+    provider: enrichment.provider,
+    model: enrichment.model,
+    fallback_used: enrichment.usedFallback ?? false,
+    routing_action: enrichment.routingAction ?? null,
+    change_summary: enrichment.changeSummary ?? null,
+    issue_signature: enrichment.issueSignature ?? null,
+    triage_source: args.source,
+    triage_version: "routing-v2",
+    last_triaged_at: new Date().toISOString(),
+    sentiment: {
+      score: enrichment.sentimentScore ?? undefined,
+      label: enrichment.sentimentLabel,
+    },
+  };
+
+  const updatedRes = await pool.query<TicketRow>(
+    `UPDATE tickets
+     SET category = $2,
+         ai_confidence = COALESCE($3, ai_confidence),
+         priority = $4,
+         sla_first_response_due_at = $5,
+         sla_resolution_due_at = $6,
+         integration_metadata = jsonb_set(COALESCE(integration_metadata, '{}'::jsonb), '{ai}', $7::jsonb, true)
+     WHERE id = $1
+     RETURNING *`,
+    [
+      args.ticket.id,
+      nextCategory,
+      enrichment.confidence,
+      nextPriority,
+      firstResponseDueAt.toISOString(),
+      resolutionDueAt.toISOString(),
+      JSON.stringify(aiMeta),
+    ]
+  );
+
+  const updatedTicket = updatedRes.rows[0] ?? args.ticket;
+  await insertTicketProcessingEvent({
+    ticketId: updatedTicket.id,
+    action: args.source === "ticket_created" ? "AI_CLASSIFIED" : "AI_RETRIAGED",
+    performedBy: args.performedBy,
+    newValue: {
+      provider: enrichment.provider,
+      model: enrichment.model,
+      category: updatedTicket.category,
+      confidence: enrichment.confidence,
+      priority: updatedTicket.priority,
+      intent: aiIntent,
+      keywords: aiKeywords,
+      routing_action: enrichment.routingAction ?? null,
+      triage_source: args.source,
+      fallback_used: enrichment.usedFallback ?? false,
+    },
+  });
+
+  return {
+    ticket: updatedTicket,
+    aiIntent,
+    aiKeywords,
+    classificationProvider: enrichment.provider,
+    classificationModel: enrichment.model,
+    enrichment,
+  };
+};
+
 export const createTicket = async (args: {
   title: string;
   description: string;
@@ -646,206 +955,18 @@ export const createTicket = async (args: {
     let classificationModel: string | null = null;
     try {
       const text = `${args.title} ${normalizedDescription}`;
-      let usedGroqEnrichment = false;
-
-      if (env.GROQ_API_KEY) {
-        const groqEnrichment = await enrichTicketForRouting(text);
-        if (groqEnrichment) {
-          const category = groqEnrichment.category || null;
-          const confidence =
-            typeof groqEnrichment.confidence === "number" ? groqEnrichment.confidence : null;
-
-          aiIntent = typeof groqEnrichment.intent === "string" ? groqEnrichment.intent : undefined;
-          aiKeywords = Array.isArray(groqEnrichment.keywords) ? groqEnrichment.keywords : undefined;
-
-          const suggestedPriority: TicketPriority | null =
-            groqEnrichment.priority === "LOW" ||
-            groqEnrichment.priority === "MEDIUM" ||
-            groqEnrichment.priority === "HIGH"
-              ? groqEnrichment.priority
-              : null;
-
-          const sentimentLabel = groqEnrichment.sentiment_label || undefined;
-          const sentimentScore = groqEnrichment.sentiment_score ?? undefined;
-
-          let nextPriority = suggestedPriority ?? classifiedTicket.priority;
-          if (sentimentLabel === "NEGATIVE" && nextPriority !== "HIGH") {
-            nextPriority = "HIGH";
-          }
-
-          const { firstResponseDueAt, resolutionDueAt } = computeSlaDueDates(
-            nextPriority,
-            new Date(classifiedTicket.created_at)
-          );
-
-          const aiMeta = {
-            summary: groqEnrichment.summary || undefined,
-            intent: aiIntent,
-            keywords: aiKeywords,
-            entities: groqEnrichment.entities || undefined,
-            priority_suggestion: suggestedPriority,
-            auto_resolvable: undefined,
-            suggested_workflow: undefined,
-            approval_title: undefined,
-            approval_body: undefined,
-            model_confidence: confidence,
-            provider: "groq",
-            model: env.GROQ_EXTRACTION_MODEL || "llama-3.3-70b-versatile",
-            sentiment: {
-              score: sentimentScore,
-              label: sentimentLabel,
-            },
-          };
-
-          const updatedRes = await pool.query<TicketRow>(
-            `UPDATE tickets
-             SET category = COALESCE($2, category),
-                 ai_confidence = COALESCE($3, ai_confidence),
-                 priority = $4,
-                 sla_first_response_due_at = $5,
-                 sla_resolution_due_at = $6,
-                 integration_metadata = jsonb_set(COALESCE(integration_metadata, '{}'::jsonb), '{ai}', $7::jsonb, true)
-             WHERE id = $1
-             RETURNING *`,
-            [
-              ticket.id,
-              category,
-              confidence,
-              nextPriority,
-              firstResponseDueAt.toISOString(),
-              resolutionDueAt.toISOString(),
-              JSON.stringify(aiMeta),
-            ]
-          );
-
-          if (updatedRes.rows.length > 0) {
-            classifiedTicket = updatedRes.rows[0];
-            usedGroqEnrichment = true;
-            classificationProvider = "groq";
-            classificationModel = env.GROQ_EXTRACTION_MODEL || "llama-3.3-70b-versatile";
-            await insertTicketProcessingEvent({
-              ticketId: classifiedTicket.id,
-              action: "AI_CLASSIFIED",
-              performedBy: args.performedBy,
-              newValue: {
-                provider: classificationProvider,
-                model: classificationModel,
-                category: classifiedTicket.category,
-                confidence,
-                priority: classifiedTicket.priority,
-                intent: aiIntent,
-                keywords: aiKeywords,
-              },
-            });
-          }
-        }
-      }
-
-      if (!usedGroqEnrichment && env.AI_CLASSIFIER_URL) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2000);
-
-        const base = env.AI_CLASSIFIER_URL.replace(/\/$/, "");
-        const enrichUrl = base.endsWith("/predict")
-          ? `${base.slice(0, -"/predict".length)}/enrich`
-          : `${base}/enrich`;
-
-        const res = await fetch(enrichUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-ai-tier": tierInfo.tier },
-          body: JSON.stringify({ text }),
-          signal: controller.signal,
-        }).finally(() => clearTimeout(timeout));
-
-        if (res.ok) {
-          const data: any = await res.json().catch(() => null);
-          const category = typeof data?.category === "string" ? data.category : null;
-          const confidence = typeof data?.confidence === "number" ? data.confidence : null;
-
-          aiIntent = typeof data?.intent === "string" ? data.intent : undefined;
-          aiKeywords = Array.isArray(data?.keywords)
-            ? data.keywords.filter((k: any) => typeof k === "string")
-            : undefined;
-
-          const suggestedPriority: TicketPriority | null =
-            data?.priority === "LOW" || data?.priority === "MEDIUM" || data?.priority === "HIGH"
-              ? data.priority
-              : null;
-
-          // Sentiment-driven priority bump (Phase 5): negative sentiment can increase priority
-          const sentimentLabel =
-            typeof data?.sentiment_label === "string" ? data.sentiment_label : undefined;
-          const sentimentScore =
-            typeof data?.sentiment_score === "number" ? data.sentiment_score : undefined;
-
-          let nextPriority = suggestedPriority ?? classifiedTicket.priority;
-          if (sentimentLabel === "NEGATIVE" && nextPriority !== "HIGH") {
-            nextPriority = "HIGH";
-          }
-          const { firstResponseDueAt, resolutionDueAt } = computeSlaDueDates(
-            nextPriority,
-            new Date(classifiedTicket.created_at)
-          );
-
-          const aiMeta = {
-            summary: typeof data?.summary === "string" ? data.summary : undefined,
-            intent: aiIntent,
-            keywords: aiKeywords,
-            entities: typeof data?.entities === "object" && data?.entities ? data.entities : undefined,
-            priority_suggestion: suggestedPriority,
-            auto_resolvable: typeof data?.auto_resolvable === "boolean" ? data.auto_resolvable : undefined,
-            suggested_workflow:
-              typeof data?.suggested_workflow === "string" ? data.suggested_workflow : undefined,
-            approval_title: typeof data?.approval_title === "string" ? data.approval_title : undefined,
-            approval_body: typeof data?.approval_body === "string" ? data.approval_body : undefined,
-            model_confidence: confidence,
-            sentiment: {
-              score: sentimentScore,
-              label: sentimentLabel,
-            },
-          };
-
-          const updatedRes = await pool.query<TicketRow>(
-            `UPDATE tickets
-             SET category = COALESCE($2, category),
-                 ai_confidence = COALESCE($3, ai_confidence),
-                 priority = $4,
-                 sla_first_response_due_at = $5,
-                 sla_resolution_due_at = $6,
-                 integration_metadata = jsonb_set(COALESCE(integration_metadata, '{}'::jsonb), '{ai}', $7::jsonb, true)
-             WHERE id = $1
-             RETURNING *`,
-            [
-              ticket.id,
-              category,
-              confidence,
-              nextPriority,
-              firstResponseDueAt.toISOString(),
-              resolutionDueAt.toISOString(),
-              JSON.stringify(aiMeta),
-            ]
-          );
-          if (updatedRes.rows.length > 0) {
-            classifiedTicket = updatedRes.rows[0];
-            classificationProvider = "classifier";
-            classificationModel = "ai_classifier_enrich";
-            await insertTicketProcessingEvent({
-              ticketId: classifiedTicket.id,
-              action: "AI_CLASSIFIED",
-              performedBy: args.performedBy,
-              newValue: {
-                provider: classificationProvider,
-                model: classificationModel,
-                category: classifiedTicket.category,
-                confidence,
-                priority: classifiedTicket.priority,
-                intent: aiIntent,
-                keywords: aiKeywords,
-              },
-            });
-          }
-        }
-      }
+      const triageResult = await analyzeTicketWithAi({
+        ticket: classifiedTicket,
+        text,
+        source: "ticket_created",
+        performedBy: args.performedBy,
+        tier: tierInfo.tier,
+      });
+      classifiedTicket = triageResult.ticket;
+      aiIntent = triageResult.aiIntent;
+      aiKeywords = triageResult.aiKeywords;
+      classificationProvider = triageResult.classificationProvider;
+      classificationModel = triageResult.classificationModel;
     } catch (aiErr) {
       // Log but don't fail ticket creation
       console.error("AI classification error:", aiErr);
@@ -1141,6 +1262,7 @@ export const createTicket = async (args: {
         priority: classifiedTicket.priority,
         title: classifiedTicket.title,
         description: classifiedTicket.description,
+        keywords: aiKeywords,
         performedBy: args.performedBy,
       });
 
@@ -1581,6 +1703,197 @@ export const getTicketComments = async (args: { ticketId: string; includeInterna
   return res.rows;
 };
 
+const refreshTicketTriageFromDynamicUpdate = async (args: {
+  ticketId: string;
+  authorId: string;
+  body: string;
+}) => {
+  const ticketRes = await pool.query<TicketRow>("SELECT * FROM tickets WHERE id = $1", [args.ticketId]);
+  const ticket = ticketRes.rows[0];
+  if (!ticket) return;
+
+  const authorRes = await pool.query<{ role: string | null }>("SELECT role FROM users WHERE id = $1", [
+    args.authorId,
+  ]);
+  const authorRole = authorRes.rows[0]?.role ?? null;
+  const source: TicketTriageSource =
+    args.authorId === ticket.created_by || (authorRole !== "AGENT" && authorRole !== "ADMIN")
+      ? "requester_comment"
+      : "agent_comment";
+
+  const tierInfo = await resolveAiTier({ userId: ticket.created_by });
+  const recentCommentsRes = await pool.query<{
+    body: string;
+    created_at: string;
+    author_name: string | null;
+    visibility: "INTERNAL_NOTE" | "REQUESTER_COMMENT";
+  }>(
+    `SELECT
+       c.body,
+       c.created_at,
+       c.visibility::text AS visibility,
+       u.name AS author_name
+     FROM ticket_comments c
+     LEFT JOIN users u ON u.id = c.author_id
+     WHERE c.ticket_id = $1
+       AND c.is_internal = false
+     ORDER BY c.created_at DESC
+     LIMIT 5`,
+    [args.ticketId]
+  );
+
+  const recentConversation = recentCommentsRes.rows
+    .slice()
+    .reverse()
+    .map(
+      (comment) =>
+        `[${new Date(comment.created_at).toISOString()}] ${comment.author_name || "User"} (${comment.visibility}): ${comment.body}`
+    )
+    .join("\n");
+
+  const currentAi =
+    ticket.integration_metadata && typeof ticket.integration_metadata === "object"
+      ? ((ticket.integration_metadata as Record<string, any>).ai as Record<string, any> | undefined)
+      : undefined;
+  const previousIssueSignature =
+    typeof currentAi?.issue_signature === "string" ? currentAi.issue_signature : null;
+
+  const triageText = [
+    `Ticket title: ${ticket.title}`,
+    `Original description: ${ticket.description}`,
+    `Current category: ${ticket.category || "OTHER"}`,
+    `Current priority: ${ticket.priority}`,
+    `Current status: ${ticket.status}`,
+    recentConversation ? `Visible conversation:\n${recentConversation}` : null,
+    `Latest public update:\n${args.body}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 10000);
+
+  const triageResult = await analyzeTicketWithAi({
+    ticket,
+    text: triageText,
+    source,
+    latestUpdate: args.body,
+    performedBy: args.authorId,
+    tier: tierInfo.tier,
+  });
+
+  if (!triageResult.enrichment) {
+    return;
+  }
+
+  const { routeTicket, applyRouting } = await import("../routing/intelligent-routing.service.js");
+  const routingResult = await routeTicket({
+    ticketId: triageResult.ticket.id,
+    category: triageResult.ticket.category,
+    priority: triageResult.ticket.priority,
+    title: triageResult.ticket.title,
+    description: `${triageResult.ticket.description}\n\nLatest update:\n${args.body}`,
+    keywords: triageResult.aiKeywords,
+    performedBy: args.authorId,
+  });
+
+  let workingTicket = triageResult.ticket;
+  if (routingResult.priority !== workingTicket.priority) {
+    const { firstResponseDueAt, resolutionDueAt } = computeSlaDueDates(
+      routingResult.priority,
+      new Date(workingTicket.created_at)
+    );
+    const priorityUpdatedRes = await pool.query<TicketRow>(
+      `UPDATE tickets
+       SET priority = $2,
+           sla_first_response_due_at = $3,
+           sla_resolution_due_at = $4
+       WHERE id = $1
+       RETURNING *`,
+      [
+        workingTicket.id,
+        routingResult.priority,
+        firstResponseDueAt.toISOString(),
+        resolutionDueAt.toISOString(),
+      ]
+    );
+    workingTicket = priorityUpdatedRes.rows[0] ?? workingTicket;
+  }
+
+  const assignmentChanged =
+    routingResult.teamId !== workingTicket.assigned_team ||
+    routingResult.agentId !== workingTicket.assigned_agent;
+  const unassigned = !workingTicket.assigned_team && !workingTicket.assigned_agent;
+  const routeAllowed = isRoutingChurnAllowed(workingTicket, source);
+  const routingAction = triageResult.enrichment.routingAction ?? null;
+  const issueSignatureChanged =
+    Boolean(previousIssueSignature) &&
+    Boolean(triageResult.enrichment.issueSignature) &&
+    previousIssueSignature !== triageResult.enrichment.issueSignature;
+  const categoryChanged = ticket.category !== workingTicket.category;
+  const priorityChanged = ticket.priority !== workingTicket.priority;
+  const hasMaterialChange =
+    issueSignatureChanged ||
+    categoryChanged ||
+    priorityChanged ||
+    Boolean(triageResult.enrichment.changeSummary);
+
+  const shouldApplyRouting =
+    routeAllowed &&
+    assignmentChanged &&
+    (
+      (unassigned && routingResult.confidence >= 0.6) ||
+      ((routingAction === "ASSIGN" || routingAction === "REASSIGN") &&
+        routingResult.confidence >= AI_DYNAMIC_REASSIGN_CONFIDENCE &&
+        hasMaterialChange)
+    );
+
+  await insertTicketProcessingEvent({
+    ticketId: workingTicket.id,
+    action: "AI_ROUTING_REEVALUATED",
+    performedBy: args.authorId,
+    newValue: {
+      source,
+      routing_action: routingAction,
+      routing_confidence: routingResult.confidence,
+      routing_method: routingResult.method,
+      recommended_team_id: routingResult.teamId,
+      recommended_agent_id: routingResult.agentId,
+      classification_provider: triageResult.classificationProvider,
+      classification_model: triageResult.classificationModel,
+      assignment_changed: assignmentChanged,
+      route_allowed: routeAllowed,
+      issue_signature_changed: issueSignatureChanged,
+      category_changed: categoryChanged,
+      priority_changed: priorityChanged,
+      applied: shouldApplyRouting,
+      change_summary: triageResult.enrichment.changeSummary ?? null,
+      keywords: triageResult.aiKeywords ?? [],
+    },
+  });
+
+  if (!shouldApplyRouting) {
+    return;
+  }
+
+  await applyRouting(workingTicket.id, routingResult, args.authorId);
+  const refreshedRes = await pool.query<TicketRow>("SELECT * FROM tickets WHERE id = $1", [workingTicket.id]);
+  const refreshedTicket = refreshedRes.rows[0] ?? workingTicket;
+
+  void triggerVisualWorkflow({
+    triggerType: "ticket_updated",
+    ticketId: refreshedTicket.id,
+    category: refreshedTicket.category,
+    performedBy: args.authorId,
+    triggerData: {
+      event: "ticket_retriaged",
+      source,
+      routing_action: routingAction,
+      confidence: routingResult.confidence,
+      recommended_team_id: routingResult.teamId,
+      recommended_agent_id: routingResult.agentId,
+    },
+  });
+};
+
 export const createTicketComment = async (args: {
   ticketId: string;
   authorId: string;
@@ -1706,6 +2019,16 @@ export const createTicketComment = async (args: {
         });
       } catch (err) {
         console.error(`Failed to create in-app notification for ticket comment ${args.ticketId}:`, err);
+      }
+
+      try {
+        await refreshTicketTriageFromDynamicUpdate({
+          ticketId: args.ticketId,
+          authorId: args.authorId,
+          body: args.body,
+        });
+      } catch (err) {
+        console.error(`Failed to refresh AI routing for ticket comment ${args.ticketId}:`, err);
       }
 
       try {
