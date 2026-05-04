@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { env } from "../../config/env.js";
 
 export type GroqMessage = {
@@ -12,6 +13,8 @@ export interface ExtractedTicketPayload {
   priority?: "LOW" | "MEDIUM" | "HIGH" | null;
   type?: "INCIDENT" | "SERVICE_REQUEST" | "CHANGE" | "PROBLEM" | null;
   urgency_reason?: string | null;
+  model?: string | null;
+  used_fallback?: boolean;
 }
 
 export interface GroqRoutingEnrichment {
@@ -24,6 +27,11 @@ export interface GroqRoutingEnrichment {
   entities?: Record<string, any> | null;
   sentiment_label?: "NEGATIVE" | "NEUTRAL" | "POSITIVE" | null;
   sentiment_score?: number | null;
+  routing_action?: "KEEP" | "ASSIGN" | "REASSIGN" | "MANUAL_REVIEW" | null;
+  change_summary?: string | null;
+  issue_signature?: string | null;
+  model?: string | null;
+  used_fallback?: boolean;
 }
 
 export interface TicketReadinessAssessment {
@@ -32,10 +40,99 @@ export interface TicketReadinessAssessment {
   guidance: string;
 }
 
+type GroqStructuredResult<T> = {
+  parsed: T;
+  model: string;
+  usedFallback: boolean;
+};
+
+type RoutingEnrichmentArgs = {
+  text: string;
+  currentCategory?: string | null;
+  currentPriority?: "LOW" | "MEDIUM" | "HIGH" | null;
+  mode?: "create" | "refresh";
+  latestUpdate?: string | null;
+};
+
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const DEFAULT_EXTRACTION_MODEL = "openai/gpt-oss-120b";
+const DEFAULT_EXTRACTION_FALLBACK_MODEL = "llama-3.3-70b-versatile";
+
+const ROUTING_CATEGORIES = [
+  "IDENTITY_ACCESS",
+  "NETWORK_VPN_WIFI",
+  "EMAIL_COLLAB",
+  "ENDPOINT_DEVICE",
+  "HARDWARE_PERIPHERAL",
+  "SOFTWARE_INSTALL_LICENSE",
+  "BUSINESS_APP_ERP_CRM",
+  "SECURITY_INCIDENT",
+  "KB_GENERAL",
+  "OTHER",
+] as const;
+
+const ROUTING_INTENTS = [
+  "INCIDENT",
+  "SERVICE_REQUEST",
+  "CHANGE",
+  "PROBLEM",
+  "HOW_TO",
+  "SECURITY_REPORT",
+  "PASSWORD_RESET",
+  "ACCOUNT_UNLOCK",
+  "UNKNOWN",
+] as const;
+
+const PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
+const TICKET_TYPES = ["INCIDENT", "SERVICE_REQUEST", "CHANGE", "PROBLEM"] as const;
+const SENTIMENT_LABELS = ["NEGATIVE", "NEUTRAL", "POSITIVE"] as const;
+const ROUTING_ACTIONS = ["KEEP", "ASSIGN", "REASSIGN", "MANUAL_REVIEW"] as const;
+
+const normalizedString = () =>
+  z
+    .string()
+    .trim()
+    .transform((value) => value || null)
+    .nullable()
+    .optional();
+
+const extractedTicketSchema = z.object({
+  title: z.string().trim().min(3).max(160),
+  description: z.string().trim().min(10).max(4000),
+  category: normalizedString(),
+  priority: normalizedString(),
+  type: normalizedString(),
+  urgency_reason: normalizedString(),
+});
+
+const routingSchema = z.object({
+  category: normalizedString(),
+  intent: normalizedString(),
+  priority: normalizedString(),
+  confidence: z.coerce.number().min(0).max(1).nullable().optional(),
+  keywords: z.array(z.string().trim()).max(20).optional().default([]),
+  summary: normalizedString(),
+  entities: z.record(z.any()).optional().default({}),
+  sentiment_label: normalizedString(),
+  sentiment_score: z.coerce.number().min(-1).max(1).nullable().optional(),
+  routing_action: normalizedString(),
+  change_summary: normalizedString(),
+  issue_signature: normalizedString(),
+});
 
 export function isGroqConfigured(): boolean {
   return Boolean(env.GROQ_API_KEY);
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])];
+}
+
+export function getGroqExtractionModels(): string[] {
+  return uniqueNonEmpty([
+    env.GROQ_EXTRACTION_MODEL || DEFAULT_EXTRACTION_MODEL,
+    env.GROQ_EXTRACTION_FALLBACK_MODEL || DEFAULT_EXTRACTION_FALLBACK_MODEL,
+  ]);
 }
 
 async function groqChatCompletion(args: {
@@ -58,8 +155,8 @@ async function groqChatCompletion(args: {
     body: JSON.stringify({
       model: args.model,
       messages: args.messages,
-      temperature: args.temperature ?? 0.4,
-      max_tokens: args.maxTokens ?? 500,
+      temperature: args.temperature ?? 0.2,
+      max_tokens: args.maxTokens ?? 700,
       response_format: args.responseFormat,
     }),
   });
@@ -89,7 +186,6 @@ function tryParseJsonObject(text: string): any | null {
   try {
     return JSON.parse(text);
   } catch {
-    // Try to recover from extra text around the JSON object
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     try {
@@ -100,34 +196,137 @@ function tryParseJsonObject(text: string): any | null {
   }
 }
 
-function normalizeExtractedTicket(payload: any, fallbackTitle: string, fallbackDescription: string): ExtractedTicketPayload {
-  const rawTitle = typeof payload?.title === "string" ? payload.title.trim() : "";
-  const rawDescription = typeof payload?.description === "string" ? payload.description.trim() : "";
+function normalizeEnumValue<T extends readonly string[]>(
+  value: unknown,
+  allowed: T,
+  aliases: Record<string, T[number]> = {}
+): T[number] | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const raw = value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!raw) return null;
 
-  const priority =
-    payload?.priority === "LOW" || payload?.priority === "MEDIUM" || payload?.priority === "HIGH"
-      ? payload.priority
-      : null;
+  if (aliases[raw]) return aliases[raw];
+  return (allowed as readonly string[]).includes(raw) ? (raw as T[number]) : null;
+}
 
-  const type =
-    payload?.type === "INCIDENT" ||
-    payload?.type === "SERVICE_REQUEST" ||
-    payload?.type === "CHANGE" ||
-    payload?.type === "PROBLEM"
-      ? payload.type
-      : null;
+const categoryAliases: Record<string, (typeof ROUTING_CATEGORIES)[number]> = {
+  ACCESS_AUTHENTICATION: "IDENTITY_ACCESS",
+  ACCESS_AUTH: "IDENTITY_ACCESS",
+  ACCESS_MANAGEMENT: "IDENTITY_ACCESS",
+  PASSWORD: "IDENTITY_ACCESS",
+  ACCOUNT: "IDENTITY_ACCESS",
+  VPN: "NETWORK_VPN_WIFI",
+  NETWORK: "NETWORK_VPN_WIFI",
+  WIFI: "NETWORK_VPN_WIFI",
+  EMAIL: "EMAIL_COLLAB",
+  OUTLOOK: "EMAIL_COLLAB",
+  COLLABORATION: "EMAIL_COLLAB",
+  DEVICE: "ENDPOINT_DEVICE",
+  ENDPOINT: "ENDPOINT_DEVICE",
+  LAPTOP: "ENDPOINT_DEVICE",
+  DESKTOP: "ENDPOINT_DEVICE",
+  PRINTER: "HARDWARE_PERIPHERAL",
+  HARDWARE: "HARDWARE_PERIPHERAL",
+  SOFTWARE: "SOFTWARE_INSTALL_LICENSE",
+  LICENSE: "SOFTWARE_INSTALL_LICENSE",
+  BUSINESS_APP: "BUSINESS_APP_ERP_CRM",
+  ERP_CRM: "BUSINESS_APP_ERP_CRM",
+  SECURITY: "SECURITY_INCIDENT",
+  KNOWLEDGE_BASE: "KB_GENERAL",
+  GENERAL: "KB_GENERAL",
+};
 
+const intentAliases: Record<string, (typeof ROUTING_INTENTS)[number]> = {
+  SERVICE: "SERVICE_REQUEST",
+  SERVICEREQUEST: "SERVICE_REQUEST",
+  SECURITY_INCIDENT: "SECURITY_REPORT",
+  PASSWORD: "PASSWORD_RESET",
+  PASSWORD_ISSUE: "PASSWORD_RESET",
+  UNLOCK: "ACCOUNT_UNLOCK",
+  ACCOUNT_LOCKED: "ACCOUNT_UNLOCK",
+};
+
+function normalizeExtractedTicket(
+  payload: any,
+  fallbackTitle: string,
+  fallbackDescription: string,
+  model: string,
+  usedFallback: boolean
+): ExtractedTicketPayload {
+  const parsed = extractedTicketSchema.parse(payload);
   return {
-    title: rawTitle || fallbackTitle,
-    description: rawDescription || fallbackDescription,
-    category: typeof payload?.category === "string" && payload.category.trim() ? payload.category.trim() : null,
-    priority,
-    type,
-    urgency_reason:
-      typeof payload?.urgency_reason === "string" && payload.urgency_reason.trim()
-        ? payload.urgency_reason.trim()
-        : null,
+    title: parsed.title || fallbackTitle,
+    description: parsed.description || fallbackDescription,
+    category: normalizeEnumValue(parsed.category, ROUTING_CATEGORIES, categoryAliases),
+    priority: normalizeEnumValue(parsed.priority, PRIORITIES),
+    type: normalizeEnumValue(parsed.type, TICKET_TYPES),
+    urgency_reason: parsed.urgency_reason,
+    model,
+    used_fallback: usedFallback,
   };
+}
+
+function normalizeRoutingEnrichment(
+  payload: any,
+  model: string,
+  usedFallback: boolean
+): GroqRoutingEnrichment {
+  const parsed = routingSchema.parse(payload);
+  return {
+    category: normalizeEnumValue(parsed.category, ROUTING_CATEGORIES, categoryAliases),
+    intent: normalizeEnumValue(parsed.intent, ROUTING_INTENTS, intentAliases),
+    priority: normalizeEnumValue(parsed.priority, PRIORITIES),
+    confidence: typeof parsed.confidence === "number" ? Number(parsed.confidence.toFixed(3)) : null,
+    keywords: parsed.keywords
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .slice(0, 12),
+    summary: parsed.summary,
+    entities: parsed.entities ?? {},
+    sentiment_label: normalizeEnumValue(parsed.sentiment_label, SENTIMENT_LABELS),
+    sentiment_score: typeof parsed.sentiment_score === "number" ? Number(parsed.sentiment_score.toFixed(3)) : null,
+    routing_action: normalizeEnumValue(parsed.routing_action, ROUTING_ACTIONS),
+    change_summary: parsed.change_summary,
+    issue_signature: parsed.issue_signature,
+    model,
+    used_fallback: usedFallback,
+  };
+}
+
+async function runStructuredGroqWithFallback<T>(args: {
+  models: string[];
+  messages: GroqMessage[];
+  maxTokens: number;
+  validate: (payload: any, model: string, usedFallback: boolean) => T;
+}): Promise<GroqStructuredResult<T>> {
+  const failures: string[] = [];
+
+  for (const [index, model] of args.models.entries()) {
+    try {
+      const content = await groqChatCompletion({
+        model,
+        messages: args.messages,
+        temperature: 0.1,
+        maxTokens: args.maxTokens,
+        responseFormat: { type: "json_object" },
+      });
+
+      const parsed = tryParseJsonObject(content);
+      if (!parsed) {
+        throw new Error("Model did not return a valid JSON object");
+      }
+
+      return {
+        parsed: args.validate(parsed, model, index > 0),
+        model,
+        usedFallback: index > 0,
+      };
+    } catch (error) {
+      failures.push(`${model}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  throw new Error(`All Groq extraction models failed. ${failures.join(" | ")}`);
 }
 
 export async function extractTicketFromConversation(args: {
@@ -139,20 +338,21 @@ export async function extractTicketFromConversation(args: {
     return null;
   }
 
-  const content = await groqChatCompletion({
-    model: env.GROQ_EXTRACTION_MODEL || "llama-3.3-70b-versatile",
-    temperature: 0.1,
-    maxTokens: 800,
-    responseFormat: { type: "json_object" },
+  const models = getGroqExtractionModels();
+
+  const structured = await runStructuredGroqWithFallback({
+    models,
+    maxTokens: 900,
     messages: [
       {
         role: "system",
         content:
-          "You extract a clean IT helpdesk ticket from a chat transcript. Return only a JSON object with keys: " +
-          "title, description, category, priority, type, urgency_reason. " +
-          "Rules: title must be short and professional. description must be a clean enterprise support description. " +
-          "priority must be one of LOW, MEDIUM, HIGH. type must be one of INCIDENT, SERVICE_REQUEST, CHANGE, PROBLEM. " +
-          "category should be one concise portal-friendly category string if obvious, otherwise null.",
+          "You extract a clean IT helpdesk ticket from a chat transcript. " +
+          "Return only JSON using this schema: " +
+          "{title:string, description:string, category:string|null, priority:'LOW'|'MEDIUM'|'HIGH'|null, " +
+          "type:'INCIDENT'|'SERVICE_REQUEST'|'CHANGE'|'PROBLEM'|null, urgency_reason:string|null}. " +
+          `Allowed category values: ${ROUTING_CATEGORIES.join(", ")}. ` +
+          "Keep the title concise and professional. Expand the description into a support-ready summary.",
       },
       {
         role: "user",
@@ -163,68 +363,63 @@ Chat transcript:
 ${args.transcript}`,
       },
     ],
+    validate: (payload, model, usedFallback) =>
+      normalizeExtractedTicket(payload, args.fallbackTitle, args.fallbackDescription, model, usedFallback),
   });
 
-  const parsed = tryParseJsonObject(content);
-  if (!parsed) return null;
-  return normalizeExtractedTicket(parsed, args.fallbackTitle, args.fallbackDescription);
+  return structured.parsed;
 }
 
-export async function enrichTicketForRouting(text: string): Promise<GroqRoutingEnrichment | null> {
+export async function enrichTicketForRouting(
+  args: string | RoutingEnrichmentArgs
+): Promise<GroqRoutingEnrichment | null> {
   if (!env.GROQ_API_KEY) {
     return null;
   }
 
-  const content = await groqChatCompletion({
-    model: env.GROQ_EXTRACTION_MODEL || "llama-3.3-70b-versatile",
-    temperature: 0.1,
-    maxTokens: 900,
-    responseFormat: { type: "json_object" },
+  const request =
+    typeof args === "string"
+      ? { text: args, mode: "create" as const }
+      : { ...args, mode: args.mode || "create" };
+
+  const models = getGroqExtractionModels();
+
+  const structured = await runStructuredGroqWithFallback({
+    models,
+    maxTokens: 950,
     messages: [
       {
         role: "system",
         content:
-          "You are an enterprise ITSM triage engine. Return only a JSON object with keys: " +
-          "category, intent, priority, confidence, keywords, summary, entities, sentiment_label, sentiment_score. " +
-          "priority must be LOW, MEDIUM, or HIGH. confidence must be a number between 0 and 1. " +
-          "sentiment_label must be NEGATIVE, NEUTRAL, or POSITIVE. keywords must be an array of short strings. " +
-          "entities must be a JSON object. summary must be concise and professional.",
+          "You are an enterprise ITSM triage engine for ticket creation and routing. " +
+          "Return only JSON using this exact schema: " +
+          "{category:string|null,intent:string|null,priority:'LOW'|'MEDIUM'|'HIGH'|null,confidence:number|null," +
+          "keywords:string[],summary:string|null,entities:object,sentiment_label:'NEGATIVE'|'NEUTRAL'|'POSITIVE'|null," +
+          "sentiment_score:number|null,routing_action:'KEEP'|'ASSIGN'|'REASSIGN'|'MANUAL_REVIEW'|null," +
+          "change_summary:string|null,issue_signature:string|null}. " +
+          `Allowed category values: ${ROUTING_CATEGORIES.join(", ")}. ` +
+          `Allowed intent values: ${ROUTING_INTENTS.join(", ")}. ` +
+          "Confidence must be between 0 and 1. " +
+          "For refreshes, keep the existing category and priority stable unless the new evidence strongly contradicts them. " +
+          "Treat clarifications, logs, and added symptoms as the same issue unless the root cause or owning team has materially changed. " +
+          "Use REASSIGN only when the core issue has genuinely shifted to a different domain or team. " +
+          "Use MANUAL_REVIEW when the issue is ambiguous or confidence should remain low.",
       },
       {
         role: "user",
-        content: text,
+        content: `Mode: ${request.mode}
+Current category: ${request.currentCategory || "UNSET"}
+Current priority: ${request.currentPriority || "UNSET"}
+Latest update: ${request.latestUpdate || "NONE"}
+
+Ticket text:
+${request.text}`,
       },
     ],
+    validate: (payload, model, usedFallback) => normalizeRoutingEnrichment(payload, model, usedFallback),
   });
 
-  const parsed = tryParseJsonObject(content);
-  if (!parsed || typeof parsed !== "object") return null;
-
-  const priority =
-    parsed.priority === "LOW" || parsed.priority === "MEDIUM" || parsed.priority === "HIGH"
-      ? parsed.priority
-      : null;
-
-  const sentimentLabel =
-    parsed.sentiment_label === "NEGATIVE" ||
-    parsed.sentiment_label === "NEUTRAL" ||
-    parsed.sentiment_label === "POSITIVE"
-      ? parsed.sentiment_label
-      : null;
-
-  return {
-    category: typeof parsed.category === "string" && parsed.category.trim() ? parsed.category.trim() : null,
-    intent: typeof parsed.intent === "string" && parsed.intent.trim() ? parsed.intent.trim() : null,
-    priority,
-    confidence: typeof parsed.confidence === "number" ? parsed.confidence : null,
-    keywords: Array.isArray(parsed.keywords)
-      ? parsed.keywords.filter((value: unknown): value is string => typeof value === "string").slice(0, 20)
-      : [],
-    summary: typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim() : null,
-    entities: typeof parsed.entities === "object" && parsed.entities ? parsed.entities : {},
-    sentiment_label: sentimentLabel,
-    sentiment_score: typeof parsed.sentiment_score === "number" ? parsed.sentiment_score : null,
-  };
+  return structured.parsed;
 }
 
 export async function assessTicketReadiness(args: {
