@@ -49,6 +49,7 @@ export async function findMatchingRules(args: {
   priority: "LOW" | "MEDIUM" | "HIGH";
   description: string;
   title: string;
+  keywords?: string[];
 }): Promise<RoutingRule[]> {
   const rules = await pool.query<RoutingRule>(
     `SELECT * FROM routing_rules 
@@ -58,6 +59,7 @@ export async function findMatchingRules(args: {
 
   const matchingRules: RoutingRule[] = [];
   const text = `${args.title} ${args.description}`.toLowerCase();
+  const normalizedKeywords = (args.keywords || []).map((keyword) => keyword.toLowerCase());
 
   for (const rule of rules.rows) {
     let matches = true;
@@ -79,7 +81,11 @@ export async function findMatchingRules(args: {
     // Check keyword filter (all keywords must be present)
     if (rule.keyword_filter && rule.keyword_filter.length > 0) {
       const allKeywordsPresent = rule.keyword_filter.every((keyword: string) =>
-        text.includes(keyword.toLowerCase())
+        text.includes(keyword.toLowerCase()) ||
+        normalizedKeywords.some(
+          (candidate) =>
+            candidate.includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(candidate)
+        )
       );
       if (!allKeywordsPresent) {
         matches = false;
@@ -191,7 +197,15 @@ export async function findTeamBySupportLevel(
     `SELECT id FROM teams 
      WHERE support_level = $1 
      ORDER BY 
-       CASE WHEN $2::text = ANY(STRING_TO_ARRAY(ARRAY_AGG(name), ',')) THEN 1 ELSE 2 END,
+       CASE
+         WHEN $2::text IS NOT NULL
+          AND (
+            lower(name) LIKE '%' || replace(lower($2::text), '_', ' ') || '%'
+            OR lower(coalesce(description, '')) LIKE '%' || replace(lower($2::text), '_', ' ') || '%'
+          )
+         THEN 0
+         ELSE 1
+       END,
        created_at ASC
      LIMIT 1`,
     [supportLevel, category]
@@ -267,6 +281,7 @@ export async function routeTicket(args: {
   priority: "LOW" | "MEDIUM" | "HIGH";
   title: string;
   description: string;
+  keywords?: string[];
   performedBy: string;
 }): Promise<RoutingResult> {
   // Step 0: Calculate complexity and update ticket
@@ -275,7 +290,7 @@ export async function routeTicket(args: {
     priority: args.priority,
     title: args.title,
     description: args.description,
-    keywords: [],
+    keywords: Array.isArray(args.keywords) ? args.keywords : [],
   });
   
   await updateTicketComplexity(args.ticketId, complexity, args.performedBy);
@@ -286,6 +301,7 @@ export async function routeTicket(args: {
     priority: args.priority,
     description: args.description,
     title: args.title,
+    keywords: args.keywords,
   });
 
   // Step 2: Apply first matching rule (highest priority)
