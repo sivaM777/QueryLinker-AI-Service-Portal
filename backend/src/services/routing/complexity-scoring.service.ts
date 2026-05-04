@@ -78,7 +78,7 @@ const TECHNICAL_KEYWORDS = [
  * Calculate complexity score for a ticket
  */
 export async function calculateComplexityScore(factors: ComplexityFactors): Promise<ComplexityScore> {
-  const { category, priority, title, description } = factors;
+  const { category, priority, title, description, keywords } = factors;
   const text = `${title} ${description}`.toLowerCase();
   const words = text.split(/\s+/).filter(word => word.length > 2);
   
@@ -105,7 +105,17 @@ export async function calculateComplexityScore(factors: ComplexityFactors): Prom
   const technicalKeywordCount = TECHNICAL_KEYWORDS.filter(keyword => 
     text.includes(keyword.toLowerCase())
   ).length;
-  scoreFactors.keywords = Math.min(technicalKeywordCount * 2, 5);
+  const aiKeywordCount = Array.isArray(keywords) ? keywords.filter((keyword) => {
+    const normalized = String(keyword || "").toLowerCase();
+    return normalized && (
+      TECHNICAL_KEYWORDS.includes(normalized) ||
+      normalized.includes("vpn") ||
+      normalized.includes("password") ||
+      normalized.includes("outlook") ||
+      normalized.includes("printer")
+    );
+  }).length : 0;
+  scoreFactors.keywords = Math.min((technicalKeywordCount + aiKeywordCount) * 1.5, 5);
   
   // 4. Description length complexity (longer descriptions often indicate complex issues)
   const wordCount = words.length;
