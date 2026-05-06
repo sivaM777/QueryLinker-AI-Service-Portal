@@ -4,6 +4,15 @@ import { pool } from "../../config/db.js";
 
 export type UserRole = "EMPLOYEE" | "AGENT" | "MANAGER" | "ADMIN";
 
+export interface PublicImpersonationContext {
+  active: true;
+  admin_user_id: string;
+  admin_name: string;
+  admin_email: string;
+  admin_role: "ADMIN";
+  started_at: string;
+}
+
 export interface DbUser {
   id: string;
   name: string;
@@ -46,6 +55,17 @@ export interface PublicUser {
   max_concurrent_tickets: number | null;
   certifications: string[] | null;
   hire_date: string | null;
+  impersonation?: PublicImpersonationContext | null;
+}
+
+export interface DbUserAuthState {
+  user_id: string;
+  failed_login_attempts: number;
+  locked_until: string | null;
+  must_rotate_password: boolean;
+  last_password_reset_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export const toPublicUser = (u: DbUser): PublicUser => ({
@@ -217,4 +237,102 @@ export const rotateRefreshToken = async (rawToken: string, ttlDays: number) => {
 export const revokeRefreshToken = async (rawToken: string) => {
   const tokenHash = sha256(rawToken);
   await pool.query("UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1", [tokenHash]);
+};
+
+export const ensureUserAuthState = async (userId: string): Promise<DbUserAuthState> => {
+  await pool.query(
+    `INSERT INTO user_auth_states (user_id)
+     VALUES ($1)
+     ON CONFLICT (user_id) DO NOTHING`,
+    [userId]
+  );
+
+  const res = await pool.query<DbUserAuthState>(
+    `SELECT user_id, failed_login_attempts, locked_until, must_rotate_password, last_password_reset_at, created_at, updated_at
+     FROM user_auth_states
+     WHERE user_id = $1`,
+    [userId]
+  );
+
+  return res.rows[0]!;
+};
+
+export const registerFailedLoginAttempt = async (
+  userId: string,
+  args?: { lockThreshold?: number; lockMinutes?: number }
+): Promise<DbUserAuthState> => {
+  const lockThreshold = args?.lockThreshold ?? 5;
+  const lockMinutes = args?.lockMinutes ?? 15;
+
+  await ensureUserAuthState(userId);
+
+  const res = await pool.query<DbUserAuthState>(
+    `UPDATE user_auth_states
+     SET failed_login_attempts = failed_login_attempts + 1,
+         locked_until = CASE
+           WHEN failed_login_attempts + 1 >= $2 THEN now() + ($3 || ' minutes')::interval
+           ELSE locked_until
+         END,
+         updated_at = now()
+     WHERE user_id = $1
+     RETURNING user_id, failed_login_attempts, locked_until, must_rotate_password, last_password_reset_at, created_at, updated_at`,
+    [userId, lockThreshold, String(lockMinutes)]
+  );
+
+  return res.rows[0]!;
+};
+
+export const clearUserAuthLock = async (userId: string): Promise<DbUserAuthState> => {
+  await ensureUserAuthState(userId);
+
+  const res = await pool.query<DbUserAuthState>(
+    `UPDATE user_auth_states
+     SET failed_login_attempts = 0,
+         locked_until = NULL,
+         updated_at = now()
+     WHERE user_id = $1
+     RETURNING user_id, failed_login_attempts, locked_until, must_rotate_password, last_password_reset_at, created_at, updated_at`,
+    [userId]
+  );
+
+  return res.rows[0]!;
+};
+
+export const markPasswordRotated = async (userId: string): Promise<DbUserAuthState> => {
+  await ensureUserAuthState(userId);
+
+  const res = await pool.query<DbUserAuthState>(
+    `UPDATE user_auth_states
+     SET failed_login_attempts = 0,
+         locked_until = NULL,
+         must_rotate_password = true,
+         last_password_reset_at = now(),
+         updated_at = now()
+     WHERE user_id = $1
+     RETURNING user_id, failed_login_attempts, locked_until, must_rotate_password, last_password_reset_at, created_at, updated_at`,
+    [userId]
+  );
+
+  return res.rows[0]!;
+};
+
+export const clearPasswordRotationFlag = async (userId: string): Promise<void> => {
+  await ensureUserAuthState(userId);
+  await pool.query(
+    `UPDATE user_auth_states
+     SET must_rotate_password = false,
+         updated_at = now()
+     WHERE user_id = $1`,
+    [userId]
+  );
+};
+
+export const revokeAllRefreshTokensForUser = async (userId: string): Promise<void> => {
+  await pool.query(
+    `UPDATE refresh_tokens
+     SET revoked_at = now()
+     WHERE user_id = $1
+       AND revoked_at IS NULL`,
+    [userId]
+  );
 };
