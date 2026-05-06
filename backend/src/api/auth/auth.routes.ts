@@ -6,12 +6,16 @@ import {
   type DbUser,
   findUserByEmail,
   findUserById,
+  type PublicImpersonationContext,
   verifyPassword,
   toPublicUser,
   createRefreshToken,
   revokeRefreshToken,
+  ensureUserAuthState,
+  registerFailedLoginAttempt,
+  clearUserAuthLock,
 } from "../../services/auth/auth.service.js";
-import { requireAuth } from "../../middlewares/auth.js";
+import { requireAuth, requireRole } from "../../middlewares/auth.js";
 import { pool } from "../../config/db.js";
 import {
   buildAzureAuthorizationUrl,
@@ -61,6 +65,7 @@ const sessionTouchSchema = z
 
 const accessCookieName = "access_token";
 const refreshCookieName = "refresh_token";
+const impersonatorCookieName = "impersonator_token";
 const refreshTtlDays = env.REFRESH_TOKEN_TTL_DAYS;
 const accessTtl = env.ACCESS_TOKEN_TTL;
 
@@ -77,12 +82,30 @@ const refreshBodySchema = z
   })
   .optional();
 
+const impersonateUserSchema = z.object({
+  user_id: z.string().uuid(),
+});
+
+type ImpersonatorTokenPayload = {
+  admin_id: string;
+  admin_name: string;
+  admin_email: string;
+  admin_role: "ADMIN";
+  impersonated_user_id: string;
+  started_at: string;
+};
+
 const normalizeSessionUrl = (value?: string | null) => {
   if (!value || typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("/login")) return null;
   return trimmed;
 };
+
+const impersonatorCookieOptions = {
+  ...refreshCookieOptions,
+  path: "/api/v1/auth",
+} as const;
 
 const createOrReplaceActiveSession = async (input: {
   userId: string;
@@ -113,6 +136,27 @@ const getRoleHomePath = (role: DbUser["role"]) => {
   if (role === "MANAGER") return "/admin/manager";
   if (role === "AGENT") return "/admin/agent-dashboard";
   return "/app";
+};
+
+const clearImpersonationCookie = (reply: any) => {
+  reply.clearCookie(impersonatorCookieName, impersonatorCookieOptions);
+};
+
+const createPublicImpersonationContext = (
+  admin: DbUser,
+  startedAt: string
+): PublicImpersonationContext => ({
+  active: true,
+  admin_user_id: admin.id,
+  admin_name: admin.name,
+  admin_email: admin.email,
+  admin_role: "ADMIN",
+  started_at: startedAt,
+});
+
+const serializePublicUser = (user: DbUser, impersonation?: PublicImpersonationContext | null) => {
+  const publicUser = toPublicUser(user);
+  return impersonation ? { ...publicUser, impersonation } : publicUser;
 };
 
 const issueBrowserSession = async (args: {
@@ -146,6 +190,32 @@ const issueBrowserSession = async (args: {
   return { publicUser, token, refreshToken: refresh.token, sessionId };
 };
 
+const issueImpersonationCookie = async (args: {
+  reply: any;
+  admin: DbUser;
+  impersonatedUser: DbUser;
+}) => {
+  const startedAt = new Date().toISOString();
+  const token = await args.reply.jwtSign(
+    {
+      admin_id: args.admin.id,
+      admin_name: args.admin.name,
+      admin_email: args.admin.email,
+      admin_role: "ADMIN",
+      impersonated_user_id: args.impersonatedUser.id,
+      started_at: startedAt,
+    } satisfies ImpersonatorTokenPayload,
+    { expiresIn: `${refreshTtlDays}d` }
+  );
+
+  args.reply.setCookie(impersonatorCookieName, token, {
+    ...impersonatorCookieOptions,
+    maxAge: refreshTtlDays * 24 * 60 * 60,
+  });
+
+  return createPublicImpersonationContext(args.admin, startedAt);
+};
+
 const parseAzureContext = (raw?: string | null) => {
   if (!raw) return { tabId: null, currentUrl: null };
   try {
@@ -169,6 +239,35 @@ const buildWebRedirect = (path: string) => {
 };
 
 export const authRoutes: FastifyPluginAsync = async (server) => {
+  const resolveImpersonationContext = async (request: any, reply: any, currentUser: DbUser) => {
+    const raw = request.cookies?.[impersonatorCookieName];
+    if (!raw) return null;
+
+    try {
+      const payload = await server.jwt.verify<ImpersonatorTokenPayload>(raw);
+      if (!payload?.admin_id || payload.admin_role !== "ADMIN" || payload.impersonated_user_id !== currentUser.id) {
+        clearImpersonationCookie(reply);
+        return null;
+      }
+
+      const admin = await findUserById(payload.admin_id);
+      if (!admin || admin.role !== "ADMIN") {
+        clearImpersonationCookie(reply);
+        return null;
+      }
+
+      if (admin.organization_id && admin.organization_id !== currentUser.organization_id) {
+        clearImpersonationCookie(reply);
+        return null;
+      }
+
+      return createPublicImpersonationContext(admin, payload.started_at);
+    } catch {
+      clearImpersonationCookie(reply);
+      return null;
+    }
+  };
+
   server.post("/demo-login", async (request, reply) => {
     const body = demoLoginSchema.parse(request.body);
     const demo = await ensureDemoWorkspace();
@@ -176,6 +275,7 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
     const user = await findUserByEmail(email);
     if (!user) return reply.code(500).send({ message: "Demo user could not be created" });
 
+    clearImpersonationCookie(reply);
     const { publicUser } = await issueBrowserSession({
       user,
       reply,
@@ -195,6 +295,7 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
         adminEmail: body.admin_email,
         adminPassword: body.password,
       });
+      clearImpersonationCookie(reply);
       const { publicUser } = await issueBrowserSession({
         user: created.admin,
         reply,
@@ -228,11 +329,33 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
       return reply.code(401).send({ message: "Invalid credentials" });
     }
 
+    const authState = await ensureUserAuthState(user.id);
+    const lockedUntilMs = authState.locked_until ? new Date(authState.locked_until).getTime() : null;
+    if (lockedUntilMs && lockedUntilMs > Date.now()) {
+      return reply.code(423).send({
+        message: "Your account is temporarily locked due to repeated failed login attempts. Please wait 15 minutes or use the account unlock auto-fix.",
+        locked_until: authState.locked_until,
+      });
+    }
+    if (lockedUntilMs && lockedUntilMs <= Date.now()) {
+      await clearUserAuthLock(user.id);
+    }
+
     const ok = await verifyPassword(body.password, user.password_hash);
     if (!ok) {
+      const failedState = await registerFailedLoginAttempt(user.id);
+      if (failedState.locked_until && new Date(failedState.locked_until).getTime() > Date.now()) {
+        return reply.code(423).send({
+          message: "Your account has been locked for 15 minutes because of repeated failed login attempts.",
+          locked_until: failedState.locked_until,
+        });
+      }
       return reply.code(401).send({ message: "Invalid credentials" });
     }
 
+    await clearUserAuthLock(user.id);
+
+    clearImpersonationCookie(reply);
     const { publicUser, token, refreshToken } = await issueBrowserSession({
       user,
       reply,
@@ -313,6 +436,7 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
       const tokens = await exchangeAzureCode(query.code);
       const identity = validateAzureIdToken(tokens.id_token);
       const user = await resolveAzureUser(identity);
+      clearImpersonationCookie(reply);
       await issueBrowserSession({
         user,
         reply,
@@ -350,7 +474,8 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
       [dbUser.id]
     );
 
-    return reply.send(toPublicUser(dbUser));
+    const impersonation = await resolveImpersonationContext(request, reply, dbUser);
+    return reply.send(serializePublicUser(dbUser, impersonation));
   });
 
   server.post("/refresh", async (request, reply) => {
@@ -375,6 +500,7 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
 
     const dbUser = await findUserById(tokenRow.user_id);
     if (!dbUser) return reply.code(401).send({ message: "Unauthorized" });
+    const impersonation = await resolveImpersonationContext(request, reply, dbUser);
 
     const incomingTabId = parsed?.tab_id ?? null;
     const incomingUrl = parsed?.current_url ?? null;
@@ -387,9 +513,9 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
     await pool.query("UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1", [tokenRow.id]);
     const rotated = await createRefreshToken(dbUser.id, refreshTtlDays);
 
-    const publicUser = toPublicUser(dbUser);
+    const publicUser = serializePublicUser(dbUser, impersonation);
     const token = await reply.jwtSign(
-      { ...publicUser, session_id: sessionId },
+      { ...toPublicUser(dbUser), session_id: sessionId },
       { expiresIn: accessTtl }
     );
 
@@ -410,6 +536,77 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
     }
 
     return reply.send({ token, user: publicUser, refresh_token: rotated.token });
+  });
+
+  server.post("/impersonate", { preHandler: [requireAuth, requireRole(["ADMIN"])] }, async (request, reply) => {
+    const body = impersonateUserSchema.parse(request.body);
+    const requester = request.authUser!;
+    const admin = await findUserById(requester.id);
+    if (!admin || admin.role !== "ADMIN") {
+      return reply.code(403).send({ message: "Only admins can impersonate users" });
+    }
+
+    if (admin.id === body.user_id) {
+      return reply.code(400).send({ message: "You are already signed in as this user" });
+    }
+
+    const targetUser = await findUserById(body.user_id);
+    if (!targetUser) {
+      return reply.code(404).send({ message: "User not found" });
+    }
+
+    if (admin.organization_id && admin.organization_id !== targetUser.organization_id) {
+      return reply.code(404).send({ message: "User not found" });
+    }
+
+    const impersonation = await issueImpersonationCookie({
+      reply,
+      admin,
+      impersonatedUser: targetUser,
+    });
+
+    const { publicUser } = await issueBrowserSession({
+      user: targetUser,
+      reply,
+      currentUrl: getRoleHomePath(targetUser.role),
+    });
+
+    return reply.send({ user: { ...publicUser, impersonation } });
+  });
+
+  server.post("/stop-impersonation", { preHandler: [requireAuth] }, async (request, reply) => {
+    const raw = request.cookies?.[impersonatorCookieName];
+    if (!raw) {
+      return reply.code(400).send({ message: "No impersonation session is active" });
+    }
+
+    let payload: ImpersonatorTokenPayload;
+    try {
+      payload = await server.jwt.verify<ImpersonatorTokenPayload>(raw);
+    } catch {
+      clearImpersonationCookie(reply);
+      return reply.code(401).send({ message: "Impersonation session has expired" });
+    }
+
+    const admin = await findUserById(payload.admin_id);
+    if (!admin || admin.role !== "ADMIN") {
+      clearImpersonationCookie(reply);
+      return reply.code(401).send({ message: "Impersonation session is no longer valid" });
+    }
+
+    const currentRefreshToken = request.cookies?.[refreshCookieName];
+    if (currentRefreshToken) {
+      await revokeRefreshToken(currentRefreshToken);
+    }
+
+    clearImpersonationCookie(reply);
+    const { publicUser } = await issueBrowserSession({
+      user: admin,
+      reply,
+      currentUrl: getRoleHomePath(admin.role),
+    });
+
+    return reply.send({ user: publicUser });
   });
 
   server.post("/release", async (request, reply) => {
@@ -473,6 +670,7 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
   server.post("/logout", async (request, reply) => {
     const parsed = refreshBodySchema.parse(request.body);
     const raw = request.cookies?.[refreshCookieName] ?? parsed?.refresh_token;
+    const impersonatorToken = request.cookies?.[impersonatorCookieName];
 
     // Best-effort: resolve user id from refresh token before revocation
     let refreshUserId: string | null = null;
@@ -491,6 +689,19 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
 
     if (raw) {
       await revokeRefreshToken(raw);
+    }
+
+    if (impersonatorToken) {
+      try {
+        const payload = await server.jwt.verify<ImpersonatorTokenPayload>(impersonatorToken);
+        if (payload?.admin_id) {
+          await pool.query("UPDATE users SET availability_status = 'OFFLINE', updated_at = now() WHERE id = $1", [
+            payload.admin_id,
+          ]);
+        }
+      } catch {
+        // Ignore invalid impersonation cookies during logout cleanup.
+      }
     }
 
     // Best-effort: mark user offline if access token is valid
@@ -521,6 +732,7 @@ export const authRoutes: FastifyPluginAsync = async (server) => {
 
     reply.clearCookie(accessCookieName, accessCookieOptions);
     reply.clearCookie(refreshCookieName, refreshCookieOptions);
+    clearImpersonationCookie(reply);
     return reply.send({ ok: true });
   });
 
