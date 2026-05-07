@@ -68,6 +68,42 @@ export interface DbUserAuthState {
   updated_at: string;
 }
 
+let ensureUserAuthStatesTablePromise: Promise<void> | null = null;
+
+const ensureUserAuthStatesTable = async (): Promise<void> => {
+  if (!ensureUserAuthStatesTablePromise) {
+    ensureUserAuthStatesTablePromise = (async () => {
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS user_auth_states (
+          user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+          locked_until TIMESTAMPTZ NULL,
+          must_rotate_password BOOLEAN NOT NULL DEFAULT false,
+          last_password_reset_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`
+      );
+
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_user_auth_states_locked_until
+         ON user_auth_states (locked_until)`
+      );
+
+      await pool.query(
+        `INSERT INTO user_auth_states (user_id)
+         SELECT id FROM users
+         ON CONFLICT (user_id) DO NOTHING`
+      );
+    })().catch((error) => {
+      ensureUserAuthStatesTablePromise = null;
+      throw error;
+    });
+  }
+
+  await ensureUserAuthStatesTablePromise;
+};
+
 export const toPublicUser = (u: DbUser): PublicUser => ({
   id: u.id,
   name: u.name,
@@ -240,6 +276,8 @@ export const revokeRefreshToken = async (rawToken: string) => {
 };
 
 export const ensureUserAuthState = async (userId: string): Promise<DbUserAuthState> => {
+  await ensureUserAuthStatesTable();
+
   await pool.query(
     `INSERT INTO user_auth_states (user_id)
      VALUES ($1)
